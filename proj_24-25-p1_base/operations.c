@@ -1,7 +1,11 @@
+#include "operations.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <string.h>
+#include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "kvs.h"
 #include "constants.h"
@@ -104,8 +108,92 @@ void kvs_show() {
   }
 }
 
-int kvs_backup() {
+void start_backup() {
+  // create the file <job-name>-<backupnum>.bck
+  // just need to fix the name
+  int fd = open("nameOfTheFile.bck", O_WRONLY | O_CREAT | O_TRUNC);
+
+  if (fd == -1) {
+    printf("Error opening the file");
+    return;
+  }
+
+  // do something similar to the kvs_show and write it on the file created
+  for (int i = 0; i < TABLE_SIZE; i++) {
+    KeyNode *keyNode = kvs_table->table[i];
+    while (keyNode != NULL) {
+
+      // add the current pair to a buffer
+      char buffer[MAX_WRITE_SIZE];
+      strcpy(buffer, "(");
+      strcat(buffer, keyNode->key);
+      strcat(buffer, ", ");
+      strcat(buffer, keyNode->value);
+      strcat(buffer, ")");
+      strcat(buffer, "\n");
+      
+      size_t len = sizeof(buffer);
+      size_t done = 0;
+
+      while (len > done) {
+        ssize_t written = write(fd, buffer + done, len - done);
+
+        if (written < 0) {
+          printf("Error writing");
+          close(fd);
+          return;
+        }
+
+        done += (size_t) written;
+      }
+      keyNode = keyNode->next;
+    }
+  }
+    // close the file
+    close(fd);
+    return;
+}
+
+int kvs_backup(int max_backups, int *active_backups) {
+
+  // verify if we can afford to start another backup
+  if ((*active_backups) < max_backups) {
+
+    pid_t pid = fork();
+
+    // child process code
+    if (pid == 0) {
+      start_backup();
+      (*active_backups)--;
+      exit(0);
+    // parent process code
+    } else if (pid > 1) {
+      (*active_backups)++;
+    } else {
+      printf("Fork Error");
+      exit(1);
+    }
+
+  } else {
+    // case when we can't afford more simultaneous backups
+    
+    kvs_wait_backup(max_backups, active_backups);
+
+    // when it leaves the wait we should execute the code
+    start_backup();
+    (*active_backups)--;
+  }
   return 0;
+}
+
+void kvs_wait_backup(int max_backups, int *active_backups) {
+  // for now i'll do an actve wait, later i can do it more efficient with a passive, one
+  // need to talk we the professor about that
+  while ((*active_backups) >= max_backups) {
+    sleep(4);
+  }
+
+  return;
 }
 
 void kvs_wait(unsigned int delay_ms) {

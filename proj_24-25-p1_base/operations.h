@@ -2,6 +2,7 @@
 #define KVS_OPERATIONS_H
 
 #include <stddef.h>
+#include "constants.h"
 
 /// Initializes the KVS state.
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
@@ -38,10 +39,10 @@ void kvs_show();
 /// Creates a backup of the KVS state and stores it in the correspondent
 /// backup file
 /// @return 0 if the backup was successful, 1 otherwise.
-int kvs_backup();
+int kvs_backup(int max_backups, int *active_backups);
 
 /// Waits for the last backup to be called.
-void kvs_wait_backup();
+void kvs_wait_backup(int max_backups, int *active_backups);
 
 /// Waits for a given amount of time.
 /// @param delay_us Delay in milliseconds.

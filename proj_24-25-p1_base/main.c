@@ -7,6 +7,10 @@
 #include "parser.h"
 #include "operations.h"
 
+// debug values to test ex2, while ex1 isn't done
+int max_backups = 2;
+int active_backups = 0;
+
 int main() {
 
   if (kvs_init()) {
@@ -82,7 +86,7 @@ int main() {
 
       case CMD_BACKUP:
 
-        if (kvs_backup()) {
+        if (kvs_backup(max_backups, &active_backups)) {
           fprintf(stderr, "Failed to perform backup.\n");
         }
         break;
