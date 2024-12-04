@@ -111,7 +111,7 @@ void kvs_show() {
 void start_backup() {
   // create the file <job-name>-<backupnum>.bck
   // just need to fix the name
-  int fd = open("nameOfTheFile.bck", O_WRONLY | O_CREAT | O_TRUNC);
+  int fd = open("nameOfTheFile.bck", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
   if (fd == -1) {
     printf("Error opening the file");
