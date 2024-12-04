@@ -109,6 +109,7 @@ void kvs_show() {
 }
 
 void start_backup() {
+
   // create the file <job-name>-<backupnum>.bck
   // just need to fix the name
   int fd = open("nameOfTheFile.bck", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
@@ -118,7 +119,6 @@ void start_backup() {
     return;
   }
 
-  // do something similar to the kvs_show and write it on the file created
   for (int i = 0; i < TABLE_SIZE; i++) {
     KeyNode *keyNode = kvs_table->table[i];
     while (keyNode != NULL) {
@@ -163,12 +163,13 @@ int kvs_backup(int max_backups, int *active_backups) {
 
     // child process code
     if (pid == 0) {
+      (*active_backups)++;
       start_backup();
       (*active_backups)--;
       exit(0);
     // parent process code
     } else if (pid > 1) {
-      (*active_backups)++;
+      
     } else {
       printf("Fork Error");
       exit(1);
@@ -180,6 +181,7 @@ int kvs_backup(int max_backups, int *active_backups) {
     kvs_wait_backup(max_backups, active_backups);
 
     // when it leaves the wait we should execute the code
+    (*active_backups)++;
     start_backup();
     (*active_backups)--;
   }
@@ -188,7 +190,7 @@ int kvs_backup(int max_backups, int *active_backups) {
 
 void kvs_wait_backup(int max_backups, int *active_backups) {
   // for now i'll do an actve wait, later i can do it more efficient with a passive, one
-  // need to talk we the professor about that
+  // need to talk with the professor about that
   while ((*active_backups) >= max_backups) {
     sleep(4);
   }
