@@ -24,6 +24,9 @@ run: kvs
 clean:
 	rm -f *.o kvs
 
+delBck:
+	rm *.bck
+
 format:
 	@which clang-format >/dev/null 2>&1 || echo "Please install clang-format to run this command"
 	clang-format -i *.c *.h

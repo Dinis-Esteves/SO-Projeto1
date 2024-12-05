@@ -10,6 +10,7 @@
 // debug values to test ex2, while ex1 isn't done
 int max_backups = 2;
 int active_backups = 0;
+int total_backups = 1;
 
 int main() {
 
@@ -86,7 +87,7 @@ int main() {
 
       case CMD_BACKUP:
 
-        if (kvs_backup(max_backups, &active_backups)) {
+        if (kvs_backup(max_backups, &active_backups, &total_backups)) {
           fprintf(stderr, "Failed to perform backup.\n");
         }
         break;
