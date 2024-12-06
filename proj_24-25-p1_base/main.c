@@ -2,17 +2,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <fcntl.h>
 #include "constants.h"
 #include "parser.h"
 #include "operations.h"
 
 // debug values to test ex2, while ex1 isn't done
-int max_backups = 2;
-int active_backups = 0;
+int active_backups = 1;
 int total_backups = 1;
 
-int main() {
+int main(int argc, char *argv[]) {
+
+  printf("%d\n", argc);
+
+  int max_backups = (*argv[2]);
+
+  int fd = open(argv[1], O_RDONLY, S_IRUSR | S_IWUSR);
 
   if (kvs_init()) {
     fprintf(stderr, "Failed to initialize KVS\n");
@@ -25,12 +30,9 @@ int main() {
     unsigned int delay;
     size_t num_pairs;
 
-    printf("> ");
-    fflush(stdout);
-
-    switch (get_next(STDIN_FILENO)) {
+    switch (get_next(fd)) {
       case CMD_WRITE:
-        num_pairs = parse_write(STDIN_FILENO, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+        num_pairs = parse_write(fd, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0) {
           fprintf(stderr, "Invalid command. See HELP for usage\n");
           continue;
@@ -43,7 +45,7 @@ int main() {
         break;
 
       case CMD_READ:
-        num_pairs = parse_read_delete(STDIN_FILENO, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+        num_pairs = parse_read_delete(fd, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
 
         if (num_pairs == 0) {
           fprintf(stderr, "Invalid command. See HELP for usage\n");
@@ -56,7 +58,7 @@ int main() {
         break;
 
       case CMD_DELETE:
-        num_pairs = parse_read_delete(STDIN_FILENO, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+        num_pairs = parse_read_delete(fd, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
 
         if (num_pairs == 0) {
           fprintf(stderr, "Invalid command. See HELP for usage\n");
@@ -74,7 +76,7 @@ int main() {
         break;
 
       case CMD_WAIT:
-        if (parse_wait(STDIN_FILENO, &delay, NULL) == -1) {
+        if (parse_wait(fd, &delay, NULL) == -1) {
           fprintf(stderr, "Invalid command. See HELP for usage\n");
           continue;
         }
@@ -118,4 +120,5 @@ int main() {
         return 0;
     }
   }
+  close(fd);
 }
