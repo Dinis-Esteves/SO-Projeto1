@@ -7,6 +7,21 @@
 
 #include "constants.h"
 
+int is_job(char filename[]) {
+  if (filename == NULL) {
+        return 0;
+    }
+
+    char *extension = strrchr(filename, '.');
+    if (extension == NULL) {
+        return 0; 
+    }
+
+    // Compare the extension with ".job"
+    return strcmp(extension, ".job") == 0;
+
+}
+
 static int read_string(int fd, char *buffer, size_t max) {
   ssize_t bytes_read;
   char ch;
