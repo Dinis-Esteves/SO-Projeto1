@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
 
   printf("%d\n", argc);
 
-  int max_backups = (*argv[2]);
+  int max_backups = (*argv[2]) - '0';
 
   int fd = open(argv[1], O_RDONLY, S_IRUSR | S_IWUSR);
 

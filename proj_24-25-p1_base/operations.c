@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-
+#include <sys/wait.h>
 #include "kvs.h"
 #include "constants.h"
 
@@ -134,7 +134,7 @@ void start_backup(int *total_backups) {
 
 
       size_t done = 0;
-      size_t len = strlen(buffer) - 1;
+      size_t len = strlen(buffer);
 
       while (len > done) {
         ssize_t written = write(fd, buffer + done, len - done);
@@ -160,34 +160,33 @@ int kvs_backup(int max_backups, int *active_backups, int *total_backups) {
 
   // verify if we can afford to start another backup
 
-  (*active_backups)++;
   pid_t pid = fork();
-
+  
   // child process code
   if (pid == 0) {
-    (*active_backups)++;
     start_backup(total_backups);
-    (*active_backups)--;
     exit(0);
 
   // parent process code
   } else if (pid > 1) {
     (*total_backups)++;
-    // probably will need a way to verify if the cilds are all done
+    (*active_backups)++;
   } else {
     printf("Fork Error");
     exit(1);
   }
 
-  //(*active_backups)--;
   return 0;
 }
 
 void kvs_wait_backup(int max_backups, int *active_backups) {
-  // for now i'll do an actve wait, later i can do it more efficient with a passive, one
-  // need to talk with the professor about that
+  // when the limit is reached the parent will be blocked until a child ends
   while ((*active_backups) >= max_backups) {
-    sleep(1);
+    int status;
+    pid_t terminated_pid = waitpid(-1, &status, 0); 
+    if (terminated_pid > 0) {
+      (*active_backups)--; 
+    }
   }
 
   return;
