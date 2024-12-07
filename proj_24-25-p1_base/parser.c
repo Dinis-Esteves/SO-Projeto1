@@ -1,5 +1,7 @@
 #include "parser.h"
 
+#include <dirent.h>
+#include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +9,13 @@
 
 #include "constants.h"
 
-int is_job(char filename[]) {
+int is_job(char filename[], unsigned char type) {
+
+
+  if (type != 8) {
+    return 0;
+  }
+
   if (filename == NULL) {
         return 0;
     }

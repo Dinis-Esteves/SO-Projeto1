@@ -15,6 +15,12 @@ int total_backups = 1;
 int main(int argc, char *argv[]) {
 
   if (argc == 3) {
+    int max_backups = (*argv[2]) - '0';      
+
+    if (kvs_init()) {
+      fprintf(stderr, "Failed to initialize KVS\n");
+      return 1;
+    }
 
     struct dirent* d;
 
@@ -26,22 +32,22 @@ int main(int argc, char *argv[]) {
     }
 
     while ((d = readdir(folder)) != NULL) {
+      //printf("%s\n", d->d_name);
 
-      if (is_job(d->d_name)) {
+      if (is_job(d->d_name, d->d_type)) {
 
-        int fd = open(d->d_name, O_RDONLY, S_IRUSR | S_IWUSR);
+        char file_path[PATH_MAX];
+        snprintf(file_path, sizeof(file_path), "%s/%s", argv[1], d->d_name);
 
-        int max_backups = (*argv[2]) - '0';
+        int fd = open(file_path, O_RDONLY, S_IRUSR | S_IWUSR);
 
-        // open the dir and make a while iterating throw the files, when we find a .job it should open it and send it
-        // to the parser below, that should do it
-
-        if (kvs_init()) {
-          fprintf(stderr, "Failed to initialize KVS\n");
-          return 1;
+        if (fd == -1) {
+          printf("Error opening file\n");
         }
 
-        while (1) {
+        int stop = 1;
+
+        while (stop) {
           char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
           char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
           unsigned int delay;
@@ -133,14 +139,14 @@ int main(int argc, char *argv[]) {
               break;
 
             case EOC:
-              kvs_terminate();
-              closedir(folder);
-              return 0;
+              stop--;
+              break;
           }
         }
-      close(fd); 
+      close(fd);
       }
     }
+    kvs_terminate();
     closedir(folder);
   }
 }
