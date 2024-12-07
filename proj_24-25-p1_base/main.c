@@ -9,7 +9,7 @@
 #include "operations.h"
 
 // debug values to test ex2, while ex1 isn't done
-int active_backups = 1;
+int active_backups = 0;
 int total_backups = 1;
 
 int main(int argc, char *argv[]) {
