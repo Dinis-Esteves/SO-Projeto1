@@ -9,7 +9,6 @@
 #include "operations.h"
 
 int active_backups = 0;
-int total_backups = 1;
 
 int main(int argc, char *argv[]) {
 
@@ -34,6 +33,8 @@ int main(int argc, char *argv[]) {
       //printf("%s\n", d->d_name);
       char* f;
       if ((f = is_job(d->d_name, d->d_type)) != NULL) {
+
+        int total_backups = 1;
         char file_path[PATH_MAX];
         char filename[FILENAME_MAX];
         char file_path_no_extension[FILENAME_MAX];

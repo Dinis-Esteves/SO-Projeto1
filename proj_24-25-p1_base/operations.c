@@ -81,16 +81,20 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     return 1;
   }
 
+  write_to_open_file(fd, "[");
+
   for (size_t i = 0; i < num_pairs; i++) {
     char* result = read_pair(kvs_table, keys[i]);
     if (result == NULL) {
-      snprintf(key, sizeof(key), "[(%s,KVSERROR)]\n", keys[i]);
+      snprintf(key, sizeof(key), "(%s,KVSERROR)", keys[i]);
+      write_to_open_file(fd, key);
     } else {
       snprintf(key, sizeof(key), "[(%s,%s)]\n", keys[i], result);
     }
     free(result);
   }
-  write_to_open_file(fd, key);
+
+  write_to_open_file(fd, "]\n");
   return 0;
 }
 
@@ -100,13 +104,18 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     return 1;
   }
 
+  write_to_open_file(fd, "[");
+
   for (size_t i = 0; i < num_pairs; i++) {
     if (delete_pair(kvs_table, keys[i]) != 0) {
       char error_message[MAX_WRITE_SIZE];
-      snprintf(error_message, sizeof(error_message), "[(%s,KVSMISSING)]\n", keys[i]);
+      snprintf(error_message, sizeof(error_message), "(%s,KVSMISSING)", keys[i]);
       write_to_open_file(fd, error_message);
     } 
   }
+
+
+  write_to_open_file(fd, "]\n");
   return 0;
 }
 
