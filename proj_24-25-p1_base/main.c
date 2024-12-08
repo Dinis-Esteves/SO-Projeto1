@@ -37,10 +37,11 @@ int main(int argc, char *argv[]) {
         char file_path[PATH_MAX];
         char filename[FILENAME_MAX];
 
-        snprintf(filename, sizeof(filename), "%s%s", argv[1], f);
-        snprintf(file_path, sizeof(file_path), "%s/%s", argv[1], d->d_name);
+        snprintf(file_path, sizeof(file_path), "%s%s", argv[1], d->d_name);
+        snprintf(filename, sizeof(filename), "%s%s.out", argv[1], f);
 
         int fd = open(file_path, O_RDONLY, S_IRUSR | S_IWUSR);
+        int out_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
         if (fd == -1) {
           printf("Error opening file\n");
@@ -76,7 +77,7 @@ int main(int argc, char *argv[]) {
                 continue;
               }
 
-              if (kvs_read(num_pairs, keys)) {
+              if (kvs_read(num_pairs, keys, out_fd)) {
                 fprintf(stderr, "Failed to read pair\n");
               }
               break;
@@ -113,7 +114,7 @@ int main(int argc, char *argv[]) {
 
             case CMD_BACKUP:
 
-              if (kvs_backup(max_backups, &active_backups, &total_backups, filename)) {
+              if (kvs_backup(max_backups, &active_backups, &total_backups, f)) {
                 fprintf(stderr, "Failed to perform backup.\n");
               }
               break;

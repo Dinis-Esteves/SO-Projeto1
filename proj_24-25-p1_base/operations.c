@@ -21,6 +21,22 @@ static struct timespec delay_to_timespec(unsigned int delay_ms) {
   return (struct timespec){delay_ms / 1000, (delay_ms % 1000) * 1000000};
 }
 
+void write_to_open_file(int fd, const char *content) {
+  size_t len = strlen(content);
+  size_t done = 0;
+
+  while (len > done) {
+    ssize_t bytes_written = write(fd, content + done, len - done);
+
+    if (bytes_written < 0) {
+      printf("Write error");
+      return;
+    }
+
+    done += (size_t) bytes_written;
+  }
+}
+
 int kvs_init() {
   if (kvs_table != NULL) {
     fprintf(stderr, "KVS state has already been initialized\n");
@@ -56,7 +72,9 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
   return 0;
 }
 
-int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE]) {
+int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
+  char key[MAX_WRITE_SIZE];  
+
   if (kvs_table == NULL) {
     fprintf(stderr, "KVS state must be initialized\n");
     return 1;
@@ -66,13 +84,16 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE]) {
   for (size_t i = 0; i < num_pairs; i++) {
     char* result = read_pair(kvs_table, keys[i]);
     if (result == NULL) {
+      snprintf(key, sizeof(key), "[(%s,KVSERROR)]\n", keys[i]);
       printf("(%s,KVSERROR)", keys[i]);
     } else {
+      snprintf(key, sizeof(key), "[(%s,%s)]\n", keys[i], result);
       printf("(%s,%s)", keys[i], result);
     }
     free(result);
   }
   printf("]\n");
+  write_to_open_file(fd, key);
   return 0;
 }
 
@@ -158,7 +179,7 @@ void start_backup(int *total_backups, char* filename) {
 }
 
 int kvs_backup(int max_backups, int *active_backups, int *total_backups, char* filename) {
-
+  printf("file:%s\n", filename);
   kvs_wait_backup(max_backups, active_backups);
 
   // verify if we can afford to start another backup
