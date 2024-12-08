@@ -109,12 +109,15 @@ void kvs_show() {
   }
 }
 
-void start_backup(int *total_backups) {
+void start_backup(int *total_backups, char* filename) {
   // create the file <job-name>-<backupnum>.bck
   // just need to fix the name
-  char filename[MAX_JOB_FILE_NAME_SIZE];
+
+  char temp_filename[MAX_JOB_FILE_NAME_SIZE];
+
+  strncpy(temp_filename, filename, sizeof(temp_filename) - 1);
   
-  sprintf(filename, "nameOfTheFile-%d.bck", *total_backups);
+  sprintf(filename, "%s-%d.bck", temp_filename, *total_backups);
   
   int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
@@ -154,7 +157,7 @@ void start_backup(int *total_backups) {
   return;
 }
 
-int kvs_backup(int max_backups, int *active_backups, int *total_backups) {
+int kvs_backup(int max_backups, int *active_backups, int *total_backups, char* filename) {
 
   kvs_wait_backup(max_backups, active_backups);
 
@@ -164,7 +167,7 @@ int kvs_backup(int max_backups, int *active_backups, int *total_backups) {
   
   // child process code
   if (pid == 0) {
-    start_backup(total_backups);
+    start_backup(total_backups, filename);
     exit(0);
 
   // parent process code

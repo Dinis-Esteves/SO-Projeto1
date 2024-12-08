@@ -20,8 +20,8 @@ enum Command {
 /// Checks if a file is a job.
 /// @param filename The name of the file we want to check
 /// @param type The type of the file
-/// @return 0 if its not a job file, 1 otherwise
-int is_job(char filename[], unsigned char type);
+/// @return NULL if its not a job file, his name without .job otherwise
+char* is_job(char filename[], unsigned char type);
 
 /// Reads a line and returns the corresponding command.
 /// @param fd File descriptor to read from.

@@ -32,10 +32,12 @@ int main(int argc, char *argv[]) {
 
     while ((d = readdir(folder)) != NULL) {
       //printf("%s\n", d->d_name);
-
-      if (is_job(d->d_name, d->d_type)) {
-
+      char* f;
+      if ((f = is_job(d->d_name, d->d_type)) != NULL) {
         char file_path[PATH_MAX];
+        char filename[FILENAME_MAX];
+
+        snprintf(filename, sizeof(filename), "%s%s", argv[1], f);
         snprintf(file_path, sizeof(file_path), "%s/%s", argv[1], d->d_name);
 
         int fd = open(file_path, O_RDONLY, S_IRUSR | S_IWUSR);
@@ -111,7 +113,7 @@ int main(int argc, char *argv[]) {
 
             case CMD_BACKUP:
 
-              if (kvs_backup(max_backups, &active_backups, &total_backups)) {
+              if (kvs_backup(max_backups, &active_backups, &total_backups, filename)) {
                 fprintf(stderr, "Failed to perform backup.\n");
               }
               break;

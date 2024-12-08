@@ -1,34 +1,35 @@
 #include "parser.h"
-
 #include <dirent.h>
 #include <stdio.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
 #include "constants.h"
 
-int is_job(char filename[], unsigned char type) {
 
+char *is_job(char filename[], unsigned char type) {
+    static char name[256];
 
-  if (type != 8) {
-    return 0;
-  }
-
-  if (filename == NULL) {
-        return 0;
+    if (type != 8 || filename == NULL) {
+        return NULL;
     }
 
     char *extension = strrchr(filename, '.');
-    if (extension == NULL) {
-        return 0; 
+    if (extension == NULL || strcmp(extension, ".job") != 0) {
+        return NULL; 
     }
 
-    // Compare the extension with ".job"
-    return strcmp(extension, ".job") == 0;
+    size_t name_length = (size_t) (extension - filename);
+    if (name_length >= sizeof(name)) {
+        return NULL;
+    }
+    strncpy(name, filename, name_length);
+    name[name_length] = '\0';
 
+    return name;
 }
+
 
 static int read_string(int fd, char *buffer, size_t max) {
   ssize_t bytes_read;
