@@ -37,8 +37,8 @@ int main(int argc, char *argv[]) {
         char file_path[PATH_MAX];
         char filename[FILENAME_MAX];
 
-        snprintf(file_path, sizeof(file_path), "%s%s", argv[1], d->d_name);
-        snprintf(filename, sizeof(filename), "%s%s.out", argv[1], f);
+        snprintf(file_path, sizeof(file_path), "%s/%s", argv[1], d->d_name);
+        snprintf(filename, sizeof(filename), "%s/%s.out", argv[1], f);
 
         int fd = open(file_path, O_RDONLY, S_IRUSR | S_IWUSR);
         int out_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
