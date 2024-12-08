@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -29,7 +30,7 @@ void write_to_open_file(int fd, const char *content) {
     ssize_t bytes_written = write(fd, content + done, len - done);
 
     if (bytes_written < 0) {
-      printf("Write error");
+      fprintf(stderr, "Write error");
       return;
     }
 
@@ -80,51 +81,42 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     return 1;
   }
 
-  printf("[");
   for (size_t i = 0; i < num_pairs; i++) {
     char* result = read_pair(kvs_table, keys[i]);
     if (result == NULL) {
       snprintf(key, sizeof(key), "[(%s,KVSERROR)]\n", keys[i]);
-      printf("(%s,KVSERROR)", keys[i]);
     } else {
       snprintf(key, sizeof(key), "[(%s,%s)]\n", keys[i], result);
-      printf("(%s,%s)", keys[i], result);
     }
     free(result);
   }
-  printf("]\n");
   write_to_open_file(fd, key);
   return 0;
 }
 
-int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE]) {
+int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
   if (kvs_table == NULL) {
     fprintf(stderr, "KVS state must be initialized\n");
     return 1;
   }
-  int aux = 0;
 
   for (size_t i = 0; i < num_pairs; i++) {
     if (delete_pair(kvs_table, keys[i]) != 0) {
-      if (!aux) {
-        printf("[");
-        aux = 1;
-      }
-      printf("(%s,KVSMISSING)", keys[i]);
-    }
+      char error_message[MAX_WRITE_SIZE];
+      snprintf(error_message, sizeof(error_message), "[(%s,KVSMISSING)]\n", keys[i]);
+      write_to_open_file(fd, error_message);
+    } 
   }
-  if (aux) {
-    printf("]\n");
-  }
-
   return 0;
 }
 
-void kvs_show() {
+void kvs_show(int fd) {
   for (int i = 0; i < TABLE_SIZE; i++) {
+    char current_key[MAX_WRITE_SIZE];
     KeyNode *keyNode = kvs_table->table[i];
     while (keyNode != NULL) {
-      printf("(%s, %s)\n", keyNode->key, keyNode->value);
+      snprintf(current_key, sizeof(current_key), "(%s, %s)\n", keyNode->key, keyNode->value);
+      write_to_open_file(fd, current_key);
       keyNode = keyNode->next; // Move to the next node
     }
   }
@@ -143,7 +135,7 @@ void start_backup(int *total_backups, char* filename) {
   int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
   if (fd == -1) {
-    printf("Error opening the file");
+    fprintf(stderr, "Error opening the file\n");
     return;
   }
 
@@ -164,7 +156,7 @@ void start_backup(int *total_backups, char* filename) {
         ssize_t written = write(fd, buffer + done, len - done);
 
         if (written < 0) {
-          printf("Error writing");
+          fprintf(stderr, "Error writing");
           close(fd);
           return;
         }
@@ -179,7 +171,6 @@ void start_backup(int *total_backups, char* filename) {
 }
 
 int kvs_backup(int max_backups, int *active_backups, int *total_backups, char* filename) {
-  printf("file:%s\n", filename);
   kvs_wait_backup(max_backups, active_backups);
 
   // verify if we can afford to start another backup
@@ -196,7 +187,7 @@ int kvs_backup(int max_backups, int *active_backups, int *total_backups, char* f
     (*total_backups)++;
     (*active_backups)++;
   } else {
-    printf("Fork Error");
+    fprintf(stderr, "Fork Error");
     exit(1);
   }
 

@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     DIR* folder = opendir(argv[1]);
 
     if (folder == NULL) {
-      printf("Error Opening Directory");
+      fprintf(stderr, "Error Opening Directory");
       return 0;
     }
 
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
         int out_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
         if (fd == -1) {
-          printf("Error opening file\n");
+          fprintf(stderr, "Error opening file\n");
         }
 
         int stop = 1;
@@ -90,14 +90,14 @@ int main(int argc, char *argv[]) {
                 continue;
               }
 
-              if (kvs_delete(num_pairs, keys)) {
+              if (kvs_delete(num_pairs, keys, out_fd)) {
                 fprintf(stderr, "Failed to delete pair\n");
               }
               break;
 
             case CMD_SHOW:
 
-              kvs_show();
+              kvs_show(out_fd);
               break;
 
             case CMD_WAIT:
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
               }
 
               if (delay > 0) {
-                printf("Waiting...\n");
+                write_to_open_file(out_fd, "Waiting...\n");
                 kvs_wait(delay);
               }
               break;
@@ -124,16 +124,19 @@ int main(int argc, char *argv[]) {
               break;
 
             case CMD_HELP:
-              printf( 
-                  "Available commands:\n"
+              char help_info[MAX_WRITE_SIZE];
+              
+              snprintf(help_info, sizeof(help_info), 
+              "Available commands:\n"
                   "  WRITE [(key,value)(key2,value2),...]\n"
                   "  READ [key,key2,...]\n"
                   "  DELETE [key,key2,...]\n"
                   "  SHOW\n"
                   "  WAIT <delay_ms>\n"
-                  "  BACKUP\n" // Not implemented
-                  "  HELP\n"
-              );
+                  "  BACKUP\n" 
+                  "  HELP\n");
+
+              write_to_open_file(out_fd, help_info);
 
               break;
               
