@@ -36,9 +36,11 @@ int main(int argc, char *argv[]) {
       if ((f = is_job(d->d_name, d->d_type)) != NULL) {
         char file_path[PATH_MAX];
         char filename[FILENAME_MAX];
+        char file_path_no_extension[FILENAME_MAX];
 
         snprintf(file_path, sizeof(file_path), "%s/%s", argv[1], d->d_name);
         snprintf(filename, sizeof(filename), "%s/%s.out", argv[1], f);
+        snprintf(file_path_no_extension, sizeof(file_path_no_extension), "%s/%s", argv[1], f);
 
         int fd = open(file_path, O_RDONLY, S_IRUSR | S_IWUSR);
         int out_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
@@ -114,7 +116,7 @@ int main(int argc, char *argv[]) {
 
             case CMD_BACKUP:
 
-              if (kvs_backup(max_backups, &active_backups, &total_backups, f)) {
+              if (kvs_backup(max_backups, &active_backups, &total_backups, file_path_no_extension)) {
                 fprintf(stderr, "Failed to perform backup.\n");
               }
               break;
@@ -123,7 +125,7 @@ int main(int argc, char *argv[]) {
               fprintf(stderr, "Invalid command. See HELP for usage\n");
               break;
 
-            case CMD_HELP:
+            case CMD_HELP: {
               char help_info[MAX_WRITE_SIZE];
               
               snprintf(help_info, sizeof(help_info), 
@@ -139,7 +141,7 @@ int main(int argc, char *argv[]) {
               write_to_open_file(out_fd, help_info);
 
               break;
-              
+              }             
             case CMD_EMPTY:
               break;
 
