@@ -2,6 +2,7 @@
 #include "string.h"
 
 #include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
@@ -132,20 +133,25 @@ void push(stack* s, char* key) {
         pthread_mutex_unlock(&s->mutex);
         return;
     }
-    s->arr[++s->top] = key;
+    s->arr[++s->top] = strdup(key);
     pthread_mutex_unlock(&s->mutex);
 }
 
 char* pop(stack* s) {
     pthread_mutex_lock(&s->mutex);
-    if (!is_empty(s)) {
+    if (s->top == -1) {  
         pthread_mutex_unlock(&s->mutex);
-        return s->arr[s->top--];
+        return NULL;
     }
-    return NULL;
+    char* key = s->arr[s->top];
+    s->top--;
+    pthread_mutex_unlock(&s->mutex);
+    return key;
 }
 
+
 void destroy_stack(stack* s) {
+
     pthread_mutex_destroy(&s->mutex);
     free(s);
 }

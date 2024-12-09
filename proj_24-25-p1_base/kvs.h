@@ -42,6 +42,11 @@ void push(stack* s, char* key);
 /// @param s stack to be modified.
 char* pop(stack* s);
 
+/// Destroys the stack.
+/// @param s stack to be deleted.
+/// @return void.
+void destroy_stack(stack* s);
+
 /// Creates a new event hash table.
 /// @return Newly created hash table, NULL on failure
 struct HashTable *create_hash_table();

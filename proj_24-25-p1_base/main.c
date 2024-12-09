@@ -18,24 +18,15 @@ char* dir;
 int* active_backups;
 int still_running = 1;
 
-// struct to pass in the threads
-typedef struct {
-  char* file_path_no_extension;
-  int fd;
-  int out_fd;
-  int max_backups;
-  int* active_backups;
-} thread_args;
-
 // function to pass in the threads
 void* handle_job() {
   char* f;
   
-  // the other funciton didnt end to span the dir and the stack is not empty
+  // run until the other funciton didn't end to span the dir and the stack is not empty
   while (still_running || !is_empty(s)) {
-    while (1) {
+    while (still_running || !is_empty(s)) {
       f = pop(s);
-      if (f != NULL) {
+      if (f != NULL) { 
         break;
       }
     }
@@ -57,7 +48,6 @@ void* handle_job() {
     if (fd == -1) {
       fprintf(stderr, "Error opening file\n");
     }
-
 
     while (stop) {
       char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
@@ -158,7 +148,7 @@ void* handle_job() {
           break;
       }
     }
-
+    free(f);
     close(fd);
     close(out_fd);
     }
@@ -174,7 +164,8 @@ int main(int argc, char *argv[]) {
 
     max_threads = (*argv[3]) - '0';
 
-    pthread_t threads[max_threads];
+    pthread_t *threads;
+    threads = malloc((long unsigned int)max_threads * sizeof(pthread_t));
 
     dir = argv[1];
 
@@ -184,7 +175,7 @@ int main(int argc, char *argv[]) {
     }
 
     s = create_stack();
-    if (create_stack() == NULL) {
+    if (s == NULL) {
       fprintf(stderr, "Failed to create stack\n");
       return 1;
     }
@@ -200,15 +191,8 @@ int main(int argc, char *argv[]) {
 
     // create the number of threads specified in the input
     for (int i = 0; i < max_threads; i++) {
-      int* thread_id = malloc(sizeof(int)); 
-      if (!thread_id) {
-          fprintf(stderr, "Failed to allocate memory for thread ID\n");
-          exit(EXIT_FAILURE);
-      }
 
-      *thread_id = i; 
-
-      if (pthread_create(&threads[i], NULL, handle_job(), thread_id) != 0) {
+      if (pthread_create(&threads[i], NULL, &handle_job, NULL) != 0) {
           fprintf(stderr, "Failed to create thread %d\n", i);
           exit(EXIT_FAILURE);
       } 
@@ -230,6 +214,8 @@ int main(int argc, char *argv[]) {
     pthread_join(threads[i], NULL);
     }
 
+    free(threads);
+    destroy_stack(s);
     kvs_terminate();
     closedir(folder);
   }
