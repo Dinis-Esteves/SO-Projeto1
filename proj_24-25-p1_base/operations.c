@@ -80,7 +80,7 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     fprintf(stderr, "KVS state must be initialized\n");
     return 1;
   }
-
+  
   write_to_open_file(fd, "[");
 
   for (size_t i = 0; i < num_pairs; i++) {

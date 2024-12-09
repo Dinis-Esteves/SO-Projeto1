@@ -2,8 +2,10 @@
 #define KEY_VALUE_STORE_H
 
 #define TABLE_SIZE 26
+#define MAX_FILES 10000
 
 #include <stddef.h>
+#include <pthread.h>
 
 typedef struct KeyNode {
     char *key;
@@ -14,6 +16,31 @@ typedef struct KeyNode {
 typedef struct HashTable {
     KeyNode *table[TABLE_SIZE];
 } HashTable;
+
+typedef struct stack {
+    int top;
+    char* arr[MAX_FILES];          
+    pthread_mutex_t mutex;   
+} stack;
+
+/// Creates a new stack.
+/// @return Newly created stack, NULL on failure
+stack* create_stack();
+
+/// checks if the stack is empty.
+/// @param s stack to be checked.
+/// @return 1 if the stack is empty, 0 otherwise.
+int is_empty(stack* s);
+
+/// pushes a new key to the stack.
+/// @param s stack to be modified.
+/// @param key Key to be pushed.
+/// @return void
+void push(stack* s, char* key);
+
+/// pops the top key from the stack.
+/// @param s stack to be modified.
+char* pop(stack* s);
 
 /// Creates a new event hash table.
 /// @return Newly created hash table, NULL on failure

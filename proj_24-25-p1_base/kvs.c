@@ -1,8 +1,10 @@
 #include "kvs.h"
 #include "string.h"
 
+#include <pthread.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <time.h>
 
 // Hash function based on key initial.
 // @param key Lowercase alphabetical string.
@@ -108,3 +110,44 @@ void free_table(HashTable *ht) {
     }
     free(ht);
 }
+
+stack* create_stack() {
+    stack* s = malloc(sizeof(stack));
+    if (!s) return NULL;
+    s->top = -1;
+    pthread_mutex_init(&s->mutex, NULL);
+    return s;
+}
+
+int is_empty(stack* s) {
+    pthread_mutex_lock(&s->mutex);
+    int result = s->top == -1;
+    pthread_mutex_unlock(&s->mutex);
+    return result;
+}
+
+void push(stack* s, char* key) {
+    pthread_mutex_lock(&s->mutex);
+    if (s->top == MAX_FILES - 1) {
+        pthread_mutex_unlock(&s->mutex);
+        return;
+    }
+    s->arr[++s->top] = key;
+    pthread_mutex_unlock(&s->mutex);
+}
+
+char* pop(stack* s) {
+    pthread_mutex_lock(&s->mutex);
+    if (!is_empty(s)) {
+        pthread_mutex_unlock(&s->mutex);
+        return s->arr[s->top--];
+    }
+    return NULL;
+}
+
+void destroy_stack(stack* s) {
+    pthread_mutex_destroy(&s->mutex);
+    free(s);
+}
+
+
