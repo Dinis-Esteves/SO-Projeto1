@@ -1,0 +1,17 @@
+1. We'll need to process the additional input (number of concurrent threads).
+R:. this number will ne the init of the thread semaphore
+
+2. We'll need to change the main file to make it create a thread for each .job it finds in the given dir.
+
+3. Probably a for joining all the create thread.
+
+4. We'll need some way to manage the number of concourrent thread that can execute simultaneously, probably it's going to be similar to the way we manage the concurrent forks.
+R:. Using semaphores is the right way to do this. Each thread decrements it, when it reaches 0, the others wait until one of the first ones ends and increments it.
+
+5. Then the code is fully running on threads, but we still need to adapts the pre-existent code so that it handles concurrent tasks correctly, aka, using mutex on variables they use, reading/writing in the hashtable.
+
+6. We should give special atencion to how forks will behave with the threads. cause each thread can do a backup, but the max number os concurrent backups is for all the threads, so i think that is going to be particularly dificult to manage. (at least in the way that is implemented rn).
+
+7. Reading the brief I fell like there are a lot of ways of managing this things and some of them allow a best concurrent performance then others.
+
+8. We need to understand witch arguments the thread will receive and create a struct to pass them into them. Probably the ones related with file names, max forks and things like that.
