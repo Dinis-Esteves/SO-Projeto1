@@ -208,13 +208,14 @@ void kvs_wait_backup(int max_backups, int *active_backups, pthread_mutex_t* acti
   // when the limit is reached the parent will be blocked until a child ends
   while (*active_backups >= max_backups) {
     int terminated_pid = wait(NULL); 
-    if (terminated_pid == 0) {
+    if (terminated_pid > 0) {
       pthread_mutex_lock(active_backups_mutex);
       (*active_backups)--; 
       pthread_mutex_unlock(active_backups_mutex);
-    }
+    } else {
+      kvs_wait(1);
+    } 
 
-    kvs_wait(1000);
   }  
   return;
 }
