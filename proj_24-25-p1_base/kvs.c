@@ -149,9 +149,7 @@ char* pop(stack* s) {
     return key;
 }
 
-
 void destroy_stack(stack* s) {
-
     pthread_mutex_destroy(&s->mutex);
     free(s);
 }

@@ -1,11 +1,13 @@
 #include "operations.h"
-#include <signal.h>
+#include <bits/pthreadtypes.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/select.h>
 #include <sys/types.h>
+#include <threads.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -13,7 +15,6 @@
 #include "constants.h"
 
 static struct HashTable* kvs_table = NULL;
-
 
 /// Calculates a timespec from a delay in milliseconds.
 /// @param delay_ms Delay in milliseconds.
@@ -87,10 +88,10 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     char* result = read_pair(kvs_table, keys[i]);
     if (result == NULL) {
       snprintf(key, sizeof(key), "(%s,KVSERROR)", keys[i]);
-      write_to_open_file(fd, key);
     } else {
-      snprintf(key, sizeof(key), "[(%s,%s)]\n", keys[i], result);
+      snprintf(key, sizeof(key), "(%s,%s)", keys[i], result);
     }
+    write_to_open_file(fd, key);
     free(result);
   }
 
@@ -104,18 +105,16 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     return 1;
   }
 
-  write_to_open_file(fd, "[");
-
   for (size_t i = 0; i < num_pairs; i++) {
+
     if (delete_pair(kvs_table, keys[i]) != 0) {
       char error_message[MAX_WRITE_SIZE];
-      snprintf(error_message, sizeof(error_message), "(%s,KVSMISSING)", keys[i]);
+      snprintf(error_message, sizeof(error_message), "[(%s,KVSMISSING)]\n", keys[i]);
       write_to_open_file(fd, error_message);
     } 
+
+
   }
-
-
-  write_to_open_file(fd, "]\n");
   return 0;
 }
 
@@ -134,7 +133,6 @@ void kvs_show(int fd) {
 void start_backup(int *total_backups, char* filename) {
   // create the file <job-name>-<backupnum>.bck
   // just need to fix the name
-
   char temp_filename[MAX_JOB_FILE_NAME_SIZE];
 
   strncpy(temp_filename, filename, sizeof(temp_filename) - 1);
@@ -179,22 +177,25 @@ void start_backup(int *total_backups, char* filename) {
   return;
 }
 
-int kvs_backup(int max_backups, int *active_backups, int *total_backups, char* filename) {
-  kvs_wait_backup(max_backups, active_backups);
+int kvs_backup(int max_backups, int *active_backups, int *total_backups, char* filename, pthread_mutex_t* active_backups_mutex) {
+  kvs_wait_backup(max_backups, active_backups, active_backups_mutex);
 
   // verify if we can afford to start another backup
-
   pid_t pid = fork();
   
   // child process code
   if (pid == 0) {
     start_backup(total_backups, filename);
+    kvs_terminate();
     exit(0);
 
   // parent process code
   } else if (pid > 1) {
+    pthread_mutex_lock(active_backups_mutex);
     (*total_backups)++;
     (*active_backups)++;
+    pthread_mutex_unlock(active_backups_mutex);
+    
   } else {
     fprintf(stderr, "Fork Error");
     exit(1);
@@ -203,16 +204,18 @@ int kvs_backup(int max_backups, int *active_backups, int *total_backups, char* f
   return 0;
 }
 
-void kvs_wait_backup(int max_backups, int *active_backups) {
+void kvs_wait_backup(int max_backups, int *active_backups, pthread_mutex_t* active_backups_mutex) {
   // when the limit is reached the parent will be blocked until a child ends
-  while ((*active_backups) >= max_backups) {
-    int status;
-    pid_t terminated_pid = waitpid(-1, &status, 0); 
-    if (terminated_pid > 0) {
+  while (*active_backups >= max_backups) {
+    int terminated_pid = wait(NULL); 
+    if (terminated_pid == 0) {
+      pthread_mutex_lock(active_backups_mutex);
       (*active_backups)--; 
+      pthread_mutex_unlock(active_backups_mutex);
     }
-  }
 
+    kvs_wait(1000);
+  }  
   return;
 }
 

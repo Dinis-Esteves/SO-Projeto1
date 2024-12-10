@@ -1,7 +1,9 @@
 #include <dirent.h>
 #include <limits.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 #include <threads.h>
 #include <time.h>
 #include <unistd.h>
@@ -11,13 +13,21 @@
 #include "parser.h"
 #include "operations.h"
 
+// global variables
 stack* s;
 int max_backups;
 int max_threads;
 char* dir;
-int* active_backups;
+int *active_backups;
 int still_running = 1;
+pthread_mutex_t active_backups_mutex;
 
+void free_all() {
+    free(active_backups);
+    pthread_mutex_destroy(&active_backups_mutex);
+    destroy_stack(s);
+    kvs_terminate();
+}
 // function to pass in the threads
 void* handle_job() {
   char* f;
@@ -30,7 +40,6 @@ void* handle_job() {
         break;
       }
     }
-
     int stop = 1;
     int total_backups = 1;
 
@@ -114,7 +123,7 @@ void* handle_job() {
 
         case CMD_BACKUP:
 
-          if (kvs_backup(max_backups, active_backups, &total_backups, file_path_no_extension)) {
+          if (kvs_backup(max_backups, active_backups, &total_backups, file_path_no_extension, &active_backups_mutex)) {
             fprintf(stderr, "Failed to perform backup.\n");
           }
           break;
@@ -148,10 +157,12 @@ void* handle_job() {
           break;
       }
     }
+
     free(f);
     close(fd);
     close(out_fd);
     }
+    
     return NULL;
 }
 
@@ -160,9 +171,15 @@ int main(int argc, char *argv[]) {
 
   if (argc == 4) {
 
-    max_backups = (*argv[2]) - '0';  
+    max_backups = (*argv[2]) - '0'; 
 
     max_threads = (*argv[3]) - '0';
+
+    active_backups = malloc(sizeof(int));
+
+    *active_backups = 0;
+
+    pthread_mutex_init(&active_backups_mutex, NULL);
 
     pthread_t *threads;
     threads = malloc((long unsigned int)max_threads * sizeof(pthread_t));
@@ -211,11 +228,26 @@ int main(int argc, char *argv[]) {
 
     // wait for the threads to end
     for (int i = 0; i < max_threads; i++) {
-    pthread_join(threads[i], NULL);
+      pthread_join(threads[i], NULL);
+    }
+    
+    // wait for the backups to end
+    while (*active_backups > 0) {
+      int terminated = wait(NULL);
+      if (terminated == -1) {
+        fprintf(stderr, "Error waiting for backup\n");
+      } else {
+        pthread_mutex_lock(&active_backups_mutex);
+        (*active_backups)--;
+        pthread_mutex_unlock(&active_backups_mutex);
+      }
     }
 
     free(threads);
+    free(active_backups);
+    pthread_mutex_destroy(&active_backups_mutex);
     destroy_stack(s);
+    free(d);
     kvs_terminate();
     closedir(folder);
   }
