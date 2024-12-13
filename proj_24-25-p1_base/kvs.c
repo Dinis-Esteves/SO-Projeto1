@@ -21,12 +21,12 @@ int hash(const char *key) {
     return -1; // Invalid index for non-alphabetic or number strings
 }
 
-
 struct HashTable* create_hash_table() {
   HashTable *ht = malloc(sizeof(HashTable));
   if (!ht) return NULL;
   for (int i = 0; i < TABLE_SIZE; i++) {
       ht->table[i] = NULL;
+    	pthread_rwlock_init(&ht->table_locks[i], NULL);
   }
   return ht;
 }
@@ -101,6 +101,10 @@ int delete_pair(HashTable *ht, const char *key) {
 void free_table(HashTable *ht) {
     for (int i = 0; i < TABLE_SIZE; i++) {
         KeyNode *keyNode = ht->table[i];
+
+		// free the read-write locks for this index
+		pthread_rwlock_destroy(&ht->table_locks[i]);
+
         while (keyNode != NULL) {
             KeyNode *temp = keyNode;
             keyNode = keyNode->next;

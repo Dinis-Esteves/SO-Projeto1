@@ -32,7 +32,7 @@ void free_all() {
 void* handle_job() {
   char* f;
   
-  // run until the other funciton didn't end to span the dir and the stack is not empty
+  // run until the other function didn't end to span the dir and the stack is not empty
   while (still_running || !is_empty(s)) {
     while (still_running || !is_empty(s)) {
       f = pop(s);
@@ -45,7 +45,7 @@ void* handle_job() {
 
     char file_path[PATH_MAX];
     char filename[FILENAME_MAX];
-    char file_path_no_extension[FILENAME_MAX];
+    char file_path_no_extension[FILENAME_MAX]; 
 
     snprintf(file_path, sizeof(file_path), "%s/%s.job", dir, f);
     snprintf(filename, sizeof(filename), "%s/%s.out", dir, f);
@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&active_backups_mutex, NULL);
 
     pthread_t *threads;
-    threads = malloc((long unsigned int)max_threads * sizeof(pthread_t));
+    threads = malloc((long unsigned int)max_threads * sizeof(pthread_t)); 
 
     dir = argv[1];
 
@@ -252,5 +252,5 @@ int main(int argc, char *argv[]) {
     closedir(folder);
   }
   
-  }
+}
 

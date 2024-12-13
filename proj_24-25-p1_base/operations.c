@@ -65,11 +65,19 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
     return 1;
   }
 
+  // lock relevant locks for writting
+  for (size_t i = 0; i < num_pairs; i++)
+  pthread_rwlock_wrlock(&kvs_table->table_locks[hash(keys[i])]);
+
   for (size_t i = 0; i < num_pairs; i++) {
     if (write_pair(kvs_table, keys[i], values[i]) != 0) {
       fprintf(stderr, "Failed to write keypair (%s,%s)\n", keys[i], values[i]);
     }
   }
+
+  // unlock relevant locks
+  for (size_t i = 0; i < num_pairs; i++)
+  pthread_rwlock_unlock(&kvs_table->table_locks[hash(keys[i])]);
 
   return 0;
 }
@@ -84,6 +92,11 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
   
   write_to_open_file(fd, "[");
 
+  // lock relevant locks for reading
+  for (size_t i = 0; i < num_pairs; i++) 
+  pthread_rwlock_rdlock(&kvs_table->table_locks[hash(keys[i])]);
+
+  // read the pairs
   for (size_t i = 0; i < num_pairs; i++) {
     char* result = read_pair(kvs_table, keys[i]);
     if (result == NULL) {
@@ -95,6 +108,10 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     free(result);
   }
 
+  // unlock relevant locks
+  for (size_t i = 0; i < num_pairs; i++) 
+  pthread_rwlock_unlock(&kvs_table->table_locks[hash(keys[i])]);
+
   write_to_open_file(fd, "]\n");
   return 0;
 }
@@ -105,20 +122,34 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     return 1;
   }
 
-  for (size_t i = 0; i < num_pairs; i++) {
+  // lock relevant locks for writting
+  for (size_t i = 0; i < num_pairs; i++) 
+  pthread_rwlock_wrlock(&kvs_table->table_locks[hash(keys[i])]);
 
+  for (size_t i = 0; i < num_pairs; i++) {
     if (delete_pair(kvs_table, keys[i]) != 0) {
       char error_message[MAX_WRITE_SIZE];
       snprintf(error_message, sizeof(error_message), "[(%s,KVSMISSING)]\n", keys[i]);
       write_to_open_file(fd, error_message);
     } 
-
-
   }
+
+  // unlock relevant locks
+  for (size_t i = 0; i < num_pairs; i++) 
+  pthread_rwlock_unlock(&kvs_table->table_locks[hash(keys[i])]);
+
   return 0;
 }
 
 void kvs_show(int fd) {
+  // block every lock for reading
+  for (int i = 0; i < TABLE_SIZE; i++) {
+    if (kvs_table->table[i] != NULL) {
+      pthread_rwlock_rdlock(&kvs_table->table_locks[i]);
+    }
+  }
+
+  // write the show command to the file
   for (int i = 0; i < TABLE_SIZE; i++) {
     char current_key[MAX_WRITE_SIZE];
     KeyNode *keyNode = kvs_table->table[i];
@@ -126,6 +157,13 @@ void kvs_show(int fd) {
       snprintf(current_key, sizeof(current_key), "(%s, %s)\n", keyNode->key, keyNode->value);
       write_to_open_file(fd, current_key);
       keyNode = keyNode->next; // Move to the next node
+    }
+  }
+
+  // unlock every lock
+  for (int i = 0; i < TABLE_SIZE; i++) {
+    if (kvs_table->table[i] != NULL) {
+      pthread_rwlock_unlock(&kvs_table->table_locks[i]);
     }
   }
 }

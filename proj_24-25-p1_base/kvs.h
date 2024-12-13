@@ -15,12 +15,13 @@ typedef struct KeyNode {
 
 typedef struct HashTable {
     KeyNode *table[TABLE_SIZE];
+    pthread_rwlock_t table_locks[TABLE_SIZE];
 } HashTable;
 
 typedef struct stack {
     int top;
     char* arr[MAX_FILES];          
-    pthread_mutex_t mutex;   
+    pthread_mutex_t mutex;
 } stack;
 
 /// Creates a new stack.
@@ -50,6 +51,11 @@ void destroy_stack(stack* s);
 /// Creates a new event hash table.
 /// @return Newly created hash table, NULL on failure
 struct HashTable *create_hash_table();
+
+/// Hashes a key.
+/// @param key Key to be hashed.
+/// @return Hashed key.
+int hash(const char *key);
 
 /// Appends a new key value pair to the hash table.
 /// @param ht Hash table to be modified.
