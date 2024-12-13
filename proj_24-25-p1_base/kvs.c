@@ -7,6 +7,10 @@
 #include <ctype.h>
 #include <time.h>
 
+int compare_index(const void *a, const void *b) {
+    return *(int*)a - *(int*)b;
+}
+
 // Hash function based on key initial.
 // @param key Lowercase alphabetical string.
 // @return hash.
@@ -19,6 +23,48 @@ int hash(const char *key) {
         return firstLetter - '0';
     }
     return -1; // Invalid index for non-alphabetic or number strings
+}
+
+void lock_table_in_order(HashTable *ht, const char (*keys)[MAX_STRING_SIZE], size_t count, int write) {
+    int index[count];
+
+    // Get the indices of the keys
+    for (int i = 0; i < (int)count; i++) {
+        index[i] = hash(keys[i]);
+    }
+
+    // Sort the keys in ascending order
+    qsort(index, count, sizeof(char*), compare_index);
+
+    // Lock the table in order
+    for (int i = 0; i < (int)count; i++) {
+        if (i == 0 || index[i] != index[i - 1]) {       // lock if not already locked
+            if (write) {
+                pthread_rwlock_wrlock(&ht->table_locks[index[i]]);
+            } else {
+                pthread_rwlock_rdlock(&ht->table_locks[index[i]]);
+            }
+        }
+    }
+}
+
+void unlock_table_in_order(HashTable *ht, const char (*keys)[MAX_STRING_SIZE], size_t count) {
+    int index[count];
+
+    // Get the indices of the keys
+    for (int i = 0; i < (int)count; i++) {
+        index[i] = hash(keys[i]);
+    }
+
+    // Sort the keys in ascending order
+    qsort(index, count, sizeof(char*), compare_index);
+
+    // Unlock the table in order
+    for (int i = (int)count - 1; i >= 0; i--) {
+        if (i == (int)count - 1 || index[i] != index[i + 1]) {
+            pthread_rwlock_unlock(&ht->table_locks[index[i]]);
+        }
+    }
 }
 
 struct HashTable* create_hash_table() {

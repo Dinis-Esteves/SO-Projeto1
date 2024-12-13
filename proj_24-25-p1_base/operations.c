@@ -66,8 +66,7 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
   }
 
   // lock relevant locks for writting
-  for (size_t i = 0; i < num_pairs; i++)
-  pthread_rwlock_wrlock(&kvs_table->table_locks[hash(keys[i])]);
+  lock_table_in_order(kvs_table, keys, num_pairs, 1);
 
   for (size_t i = 0; i < num_pairs; i++) {
     if (write_pair(kvs_table, keys[i], values[i]) != 0) {
@@ -76,8 +75,7 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
   }
 
   // unlock relevant locks
-  for (size_t i = 0; i < num_pairs; i++)
-  pthread_rwlock_unlock(&kvs_table->table_locks[hash(keys[i])]);
+  unlock_table_in_order(kvs_table, keys, num_pairs);
 
   return 0;
 }
@@ -93,8 +91,7 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
   write_to_open_file(fd, "[");
 
   // lock relevant locks for reading
-  for (size_t i = 0; i < num_pairs; i++) 
-  pthread_rwlock_rdlock(&kvs_table->table_locks[hash(keys[i])]);
+  lock_table_in_order(kvs_table, keys, num_pairs, 0);
 
   // read the pairs
   for (size_t i = 0; i < num_pairs; i++) {
@@ -109,8 +106,7 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
   }
 
   // unlock relevant locks
-  for (size_t i = 0; i < num_pairs; i++) 
-  pthread_rwlock_unlock(&kvs_table->table_locks[hash(keys[i])]);
+  unlock_table_in_order(kvs_table, keys, num_pairs);
 
   write_to_open_file(fd, "]\n");
   return 0;
@@ -123,8 +119,7 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
   }
 
   // lock relevant locks for writting
-  for (size_t i = 0; i < num_pairs; i++) 
-  pthread_rwlock_wrlock(&kvs_table->table_locks[hash(keys[i])]);
+  lock_table_in_order(kvs_table, keys, num_pairs, 1);
 
   for (size_t i = 0; i < num_pairs; i++) {
     if (delete_pair(kvs_table, keys[i]) != 0) {
@@ -135,8 +130,7 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
   }
 
   // unlock relevant locks
-  for (size_t i = 0; i < num_pairs; i++) 
-  pthread_rwlock_unlock(&kvs_table->table_locks[hash(keys[i])]);
+  unlock_table_in_order(kvs_table, keys, num_pairs);
 
   return 0;
 }
@@ -144,9 +138,7 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
 void kvs_show(int fd) {
   // block every lock for reading
   for (int i = 0; i < TABLE_SIZE; i++) {
-    if (kvs_table->table[i] != NULL) {
-      pthread_rwlock_rdlock(&kvs_table->table_locks[i]);
-    }
+    pthread_rwlock_rdlock(&kvs_table->table_locks[i]);
   }
 
   // write the show command to the file
@@ -162,9 +154,7 @@ void kvs_show(int fd) {
 
   // unlock every lock
   for (int i = 0; i < TABLE_SIZE; i++) {
-    if (kvs_table->table[i] != NULL) {
       pthread_rwlock_unlock(&kvs_table->table_locks[i]);
-    }
   }
 }
 
