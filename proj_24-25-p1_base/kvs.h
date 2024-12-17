@@ -1,9 +1,11 @@
 #ifndef KEY_VALUE_STORE_H
 #define KEY_VALUE_STORE_H
 
+#define TABLE_SIZE 26
+#define MAX_FILES 10000
+
 #include <stddef.h>
 #include <pthread.h>
-#include "constants.h"
 
 typedef struct KeyNode {
     char *key;
@@ -13,13 +15,13 @@ typedef struct KeyNode {
 
 typedef struct HashTable {
     KeyNode *table[TABLE_SIZE];
-    pthread_rwlock_t table_locks[TABLE_SIZE];
+    pthread_rwlock_t rwlock[TABLE_SIZE];
 } HashTable;
 
 typedef struct stack {
     int top;
     char* arr[MAX_FILES];          
-    pthread_mutex_t mutex;
+    pthread_mutex_t mutex;   
 } stack;
 
 /// Creates a new stack.
@@ -50,30 +52,6 @@ void destroy_stack(stack* s);
 /// @return Newly created hash table, NULL on failure
 struct HashTable *create_hash_table();
 
-/// Hashes a key.
-/// @param key Key to be hashed.
-/// @return Hashed key.
-int hash(const char *key);
-
-/// Compares two keys.
-/// @param a First key to be compared.
-/// @param b Second key to be compared.
-/// @return 0 if the keys are equal, 1 otherwise.
-int compare_index(const void *a, const void *b);
-
-/// Locks the table in order.
-/// @param ht Hash table to be locked.
-/// @param keys Keys to be locked.
-/// @param count Number of keys to be locked.
-/// @param write 1 if the lock is for writing, 0 otherwise.
-void lock_table_in_order(HashTable *ht, const char (*keys)[MAX_STRING_SIZE], size_t count, int write);
-
-/// Unlocks the table in order.
-/// @param ht Hash table to be unlocked.
-/// @param keys Keys to be unlocked.
-/// @param count Number of keys to be unlocked.
-void unlock_table_in_order(HashTable *ht, const char (*keys)[MAX_STRING_SIZE], size_t count);
-
 /// Appends a new key value pair to the hash table.
 /// @param ht Hash table to be modified.
 /// @param key Key of the pair to be written.
@@ -97,5 +75,9 @@ int delete_pair(HashTable *ht, const char *key);
 /// @param ht Hash table to be deleted.
 void free_table(HashTable *ht);
 
+/// Hashes a key.
+/// @param key Key to be hashed.
+/// @return Hashed key.
+int hash(const char *key);
 
 #endif  // KVS_H
