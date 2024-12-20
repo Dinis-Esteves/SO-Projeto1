@@ -191,6 +191,7 @@ void* host() {
     // read the connect request
   }
 
+  close(fd);
 }
 
 

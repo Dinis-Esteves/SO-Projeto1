@@ -1,10 +1,10 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "api.h"
 #include "parser.h"
 #include "src/client/api.h"
 #include "src/common/constants.h"
@@ -30,6 +30,8 @@ int main(int argc, char* argv[]) {
   strncat(notif_pipe_path, argv[1], strlen(argv[1]) * sizeof(char));
 
   // TODO open pipes
+
+  kvs_connect(req_pipe_path, resp_pipe_path, argv[2], notif_pipe_path, &notif_fd);
 
   while (1) {
     switch (get_next(STDIN_FILENO)) {
