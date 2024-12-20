@@ -1,10 +1,13 @@
 #include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <threads.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -16,11 +19,13 @@
 // global variables
 stack* s;
 int max_backups;
+int running;
 int max_threads;
 char* dir;
 int *active_backups;
 int still_running = 1;
 pthread_mutex_t active_backups_mutex;
+char* fifo_pathname;
 
 // function to pass in the threads
 void* handle_job() {
@@ -160,14 +165,46 @@ void* handle_job() {
     return NULL;
 }
 
+void* host() {
+
+// remove pipe if it exists
+  if (unlink(fifo_pathname) != 0) {
+    perror("[ERR]: unlink(%s) failed");
+    exit(EXIT_FAILURE);
+  }
+
+  // create the register pipe
+  if (mkfifo(fifo_pathname, 0640) != 0) {
+    perror("[ERR]: mkfifo failed");
+    exit(EXIT_FAILURE);
+  }
+
+  // open the pipe to read the connect requests
+  int fd = open(fifo_pathname, O_RDONLY);
+
+  if (fd == -1) {
+    perror("[ERR]: open failed");
+    exit(EXIT_FAILURE);
+  }
+
+  while (running) {
+    // read the connect request
+  }
+
+}
+
 
 int main(int argc, char *argv[]) {
 
-  if (argc == 4) {
+  if (argc == 5) {
+
+    running = 1;
 
     max_backups = atoi(argv[2]); 
 
     max_threads = atoi(argv[3]);
+
+    fifo_pathname = argv[4];
 
     active_backups = malloc(sizeof(int));
 
@@ -199,6 +236,10 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Error Opening Directory");
       return 0;
     }
+
+    // create the host thread
+    pthread_t *host_thread = malloc(sizeof(pthread_t));
+    pthread_create(host_thread, NULL, &host, NULL);
 
     // create the number of threads specified in the input
     for (int i = 0; i < max_threads; i++) {
@@ -237,8 +278,12 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    // notify the host thread to close
+    int running = 0;
+
     free(threads);
     free(active_backups);
+    free(host_thread);
     pthread_mutex_destroy(&active_backups_mutex);
     destroy_stack(s);
     free(d);
