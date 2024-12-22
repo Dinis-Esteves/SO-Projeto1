@@ -13,6 +13,8 @@
 #include <fcntl.h>
 #include "constants.h"
 #include "kvs.h"
+#include "../common/io.h" 
+#include "../common/constants.h" 
 #include "parser.h"
 #include "operations.h"
 
@@ -25,7 +27,7 @@ char* dir;
 int *active_backups;
 int still_running = 1;
 pthread_mutex_t active_backups_mutex;
-char* fifo_pathname;
+char fifo_pathname[MAX_PIPE_PATH_LENGTH];
 
 // function to pass in the threads
 void* handle_job() {
@@ -166,32 +168,40 @@ void* handle_job() {
 }
 
 void* host() {
-
 // remove pipe if it exists
-  if (unlink(fifo_pathname) != 0) {
-    perror("[ERR]: unlink(%s) failed");
-    exit(EXIT_FAILURE);
-  }
-
+  unlink(fifo_pathname);
+  
   // create the register pipe
   if (mkfifo(fifo_pathname, 0640) != 0) {
     perror("[ERR]: mkfifo failed");
     exit(EXIT_FAILURE);
   }
-
   // open the pipe to read the connect requests
   int fd = open(fifo_pathname, O_RDONLY);
-
   if (fd == -1) {
     perror("[ERR]: open failed");
     exit(EXIT_FAILURE);
   }
 
   while (running) {
+
+    // buffer to read the connect request
+    char buffer[MAX_PIPE_PATH_LENGTH * 3];
+
     // read the connect request
+     int result = read_string(fd, buffer); // Use read_string to handle newline
+        if (result == -1) {
+            perror("Failed to read from FIFO");
+            break;
+        } else if (result == 0) {
+            printf("Client disconnected or EOF\n");
+            break;
+        }
+        printf("Received: %s\n", buffer);
   }
 
   close(fd);
+  return NULL;
 }
 
 
@@ -205,7 +215,9 @@ int main(int argc, char *argv[]) {
 
     max_threads = atoi(argv[3]);
 
-    fifo_pathname = argv[4];
+    char* tmp = argv[4];
+
+    snprintf(fifo_pathname, MAX_PIPE_PATH_LENGTH, "/tmp/%s", tmp);
 
     active_backups = malloc(sizeof(int));
 
@@ -280,7 +292,7 @@ int main(int argc, char *argv[]) {
     }
 
     // notify the host thread to close
-    int running = 0;
+    running = 0;
 
     free(threads);
     free(active_backups);
