@@ -42,14 +42,6 @@ int main(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  // open request pipe
-
-  int req_fd = open(req_pipe_path, O_RDONLY | O_NONBLOCK);
-  if (req_fd < 0) {
-    perror("Error opening request pipe");
-    return 1;
-  }
-
   // create the response pipe 
   if (mkfifo(resp_pipe_path, 0640) != 0) {
     perror("[ERR]: mkfifo failed");
@@ -67,19 +59,25 @@ int main(int argc, char* argv[]) {
   int notif_fd = open(notif_pipe_path, O_RDONLY | O_NONBLOCK);
   if (notif_fd < 0) {
     perror("Error opening notification pipe");
-    close(req_fd);
+    return 1;
+  }
+  // open response pipe
+  int resp_fd = open(resp_pipe_path, O_RDONLY | O_NONBLOCK);
+  if (resp_fd < 0) {
+    perror("Error opening response pipe");
     return 1;
   }
 
   kvs_connect(req_pipe_path, resp_pipe_path, argv[2], notif_pipe_path);
 
-  // open response pipe
-  int resp_fd = open(resp_pipe_path, O_WRONLY);
-  if (resp_fd < 0) {
-    perror("Error opening response pipe");
-    close(req_fd);
+  // open request pipe
+
+  int req_fd = open(req_pipe_path, O_WRONLY);
+  if (req_fd < 0) {
+    perror("Error opening request pipe");
     return 1;
   }
+  
   while (1) {
     switch (get_next(STDIN_FILENO)) {
       case CMD_DISCONNECT:

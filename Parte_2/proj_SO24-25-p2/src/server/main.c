@@ -189,26 +189,49 @@ void* host() {
     char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4];
 
     // read the connect request
-     int result = read_string(fd, buffer); // Use read_string to handle newline
-      if (result == -1) {
-        perror("Failed to read from FIFO");
-        break;
-      } else if (result == 0) {
-        printf("Client disconnected or EOF\n");
-        // have to find a way so that the task dosen't end when the client leaves, cause there could be more client requests
-        // maybe thats why we would need the wait funciton to make the server wait a bit?
-        break;
-      }
-      char req_pipe_path[MAX_PIPE_PATH_LENGTH];
-      char resp_pipe_path[MAX_PIPE_PATH_LENGTH];
-      char notif_pipe_path[MAX_PIPE_PATH_LENGTH];
+    int result = read_string(fd, buffer); // Use read_string to handle newline
+    if (result == -1) {
+      perror("Failed to read from FIFO");
+      break;
+    } else if (result == 0) {
+      printf("Client disconnected or EOF\n");
+      // have to find a way so that the task dosen't end when the client leaves, cause there could be more client requests
+      // maybe thats why we would need the wait funciton to make the server wait a bit?
+      break;
+    }
+    char req_pipe_path[MAX_PIPE_PATH_LENGTH];
+    char resp_pipe_path[MAX_PIPE_PATH_LENGTH];
+    char notif_pipe_path[MAX_PIPE_PATH_LENGTH];
 
-      // parse the connect request
-      sscanf(buffer, "1|%[^|]|%[^|]|%[^|]", req_pipe_path, resp_pipe_path, notif_pipe_path);
+    // parse the connect request
+    sscanf(buffer, "1|%[^|]|%[^|]|%[^|]", req_pipe_path, resp_pipe_path, notif_pipe_path);
 
-     // printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path)
+    // printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path)
+  
+    // open the pipes
+    int req_fd = open(req_pipe_path, O_RDONLY | O_NONBLOCK);
 
-     
+    if (req_fd == -1) {
+      perror("Failed to open request pipe");
+      continue;
+    }
+
+    int resp_fd = open(resp_pipe_path, O_WRONLY);
+
+    if (resp_fd == -1) {
+      perror("Failed to open response pipe");
+      close(req_fd);
+      continue;
+    }
+
+    int notif_fd = open(notif_pipe_path, O_WRONLY);
+
+    if (notif_fd == -1) {
+      perror("Failed to open notification pipe");
+      close(req_fd);
+      close(resp_fd);
+      continue;
+    }    
         
   }
 
