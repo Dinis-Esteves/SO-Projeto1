@@ -9,7 +9,7 @@
 #include <stdio.h>
 
 
-#define CONNECT_MESSAGE_LEN (MAX_PIPE_PATH_LENGTH * 3 + 3)
+#define CONNECT_MESSAGE_LEN (MAX_PIPE_PATH_LENGTH * 3 + 4)
 
 int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char const* server_pipe_path,
                 char const* notif_pipe_path) {
@@ -26,7 +26,7 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
   // send connect message to server
   char connect_msg[CONNECT_MESSAGE_LEN];
 
-  snprintf(connect_msg, CONNECT_MESSAGE_LEN, "%s|%s|%s", req_pipe_path, resp_pipe_path, notif_pipe_path);
+  snprintf(connect_msg, CONNECT_MESSAGE_LEN, "1|%s|%s|%s", req_pipe_path, resp_pipe_path, notif_pipe_path);
 
   if (write_all(server_fd, connect_msg, CONNECT_MESSAGE_LEN) < 0) {
     perror("Error writing to server pipe");
