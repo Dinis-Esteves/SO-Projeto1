@@ -35,13 +35,14 @@ void* manager_pool() {
 
   // i'll make it run until the jobs ended for now but im pretty sure it isn't what they want
   while (still_running) {
-    char req_pipe_path[MAX_PIPE_PATH_LENGTH];
-    char resp_pipe_path[MAX_PIPE_PATH_LENGTH];
-    char notif_pipe_path[MAX_PIPE_PATH_LENGTH];
+    char req_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
+    char resp_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
+    char notif_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
 
     // dequeue the connect request
     dequeue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
 
+    printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path);
     // open the pipes
     int req_fd = open(req_pipe_path, O_RDONLY | O_NONBLOCK);
 
@@ -212,53 +213,51 @@ void* handle_job() {
 }
 
 void* host() {
-// remove pipe if it exists
-  unlink(fifo_pathname);
-  
-  // create the register pipe
-  if (mkfifo(fifo_pathname, 0640) != 0) {
-    perror("[ERR]: mkfifo failed");
-    exit(EXIT_FAILURE);
-  }
-  // open the pipe to read the connect requests
-  int fd = open(fifo_pathname, O_RDONLY);
-  if (fd == -1) {
-    perror("[ERR]: open failed");
-    exit(EXIT_FAILURE);
-  }
+    // Remove pipe if it exists
+    unlink(fifo_pathname);
 
-  while (running) {
-
-    // buffer to read the connect request
-    char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4];
-
-    // read the connect request
-    int result = read_string(fd, buffer); // Use read_string to handle newline
-    if (result == -1) {
-      perror("Failed to read from FIFO");
-      break;
-    } else if (result == 0) {
-      printf("Client disconnected or EOF\n");
-      // have to find a way so that the task dosen't end when the client leaves, cause there could be more client requests
-      // maybe thats why we would need the wait funciton to make the server wait a bit?
-      break;
+    // Create the register pipe
+    if (mkfifo(fifo_pathname, 0640) != 0) {
+        perror("[ERR]: mkfifo failed");
+        exit(EXIT_FAILURE);
     }
-    char req_pipe_path[MAX_PIPE_PATH_LENGTH];
-    char resp_pipe_path[MAX_PIPE_PATH_LENGTH];
-    char notif_pipe_path[MAX_PIPE_PATH_LENGTH];
 
-    // parse the connect request
-    sscanf(buffer, "1|%[^|]|%[^|]|%[^|]", req_pipe_path, resp_pipe_path, notif_pipe_path);
+    // Open the pipe once for the entire duration
+    int fd = open(fifo_pathname, O_RDONLY);
+    if (fd == -1) {
+        perror("[ERR]: open failed");
+        exit(EXIT_FAILURE);
+    }
 
-    // enqueue the connect request
-    enqueue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
+    while (running) {
+      char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4] = {0};
 
-    // printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path)
-  }
+        // Keep reading from the FIFO
+        int result = read_string(fd, buffer);
+        sleep(1);
+        if (result == -1) {
+            perror("Failed to read from FIFO");
+            break;  // If error reading, break out of the loop
+        } else if (result == 0) {
+            continue;  // No data available, continue to the next iteration
+        }
 
-  close(fd);
-  return NULL;
+        // Parse the connect request
+        char req_pipe_path[MAX_PIPE_PATH_LENGTH];
+        char resp_pipe_path[MAX_PIPE_PATH_LENGTH];
+        char notif_pipe_path[MAX_PIPE_PATH_LENGTH];
+        sscanf(buffer, "1|%[^|]|%[^|]|%[^|]", req_pipe_path, resp_pipe_path, notif_pipe_path);
+
+        // Enqueue the connect request
+        enqueue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
+
+        printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path);
+    }
+
+    close(fd); // Close FIFO when done
+    return NULL;
 }
+
 
 
 int main(int argc, char *argv[]) {
@@ -298,7 +297,7 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    pc_buffer = init_FIFO_Buffer();
+    pc_buffer = init_FIFO_buffer();
     if (pc_buffer == NULL) {
       fprintf(stderr, "Failed to create buffer\n");
       return 1;
@@ -371,10 +370,11 @@ int main(int argc, char *argv[]) {
     free(host_thread);
     pthread_mutex_destroy(&active_backups_mutex);
     destroy_stack(s);
+    destroy_FIFO_buffer(pc_buffer);
     free(d);
     kvs_terminate();
     closedir(folder);
   }
-  
-  }
+  return 0;
+}
 

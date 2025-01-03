@@ -27,7 +27,7 @@ typedef struct stack {
 } stack;
 
 typedef struct FIFOBuffer {
-    char **buffer;         
+    char *buffer[MAX_CLIENTS];         
     int size;
     int front;
     int rear;
@@ -38,12 +38,12 @@ typedef struct FIFOBuffer {
 
 /// Initializes the FIFO buffer.
 /// @return Newly created FIFO buffer, NULL on failure
-FIFOBuffer* init_FIFO_Buffer();
+FIFOBuffer* init_FIFO_buffer();
 
 /// Destroys the FIFO buffer.
 /// @param buffer FIFO buffer to be destroyed.
 /// @return void
-void destroy_FIFO_Buffer(FIFOBuffer *buffer);
+void destroy_FIFO_buffer(FIFOBuffer *buffer);
 
 /// Enqueues a new element to the FIFO buffer.
 /// @param fifo FIFO buffer to be modified.

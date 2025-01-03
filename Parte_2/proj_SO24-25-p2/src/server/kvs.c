@@ -161,9 +161,16 @@ FIFOBuffer* init_FIFO_buffer() {
     }
     fifo->front = 0;
     fifo->rear = 0;
-    sem_init(&fifo->empty, 0, MAX_CLIENTS); // Initially, all slots are empty
-    sem_init(&fifo->full, 0, 0);        // Initially, no slots are full
+
+    sem_init(&fifo->empty, 0, MAX_CLIENTS); 
+    sem_init(&fifo->full, 0, 0);        
     pthread_mutex_init(&fifo->mutex, NULL);
+
+    // Allocate memory for each string in the buffer
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        fifo->buffer[i] = malloc(MAX_PIPE_PATH_LENGTH * 3 + 3); // For 3 pipes and delimiters
+    }
+
     return fifo;
 }
 
@@ -179,6 +186,7 @@ void enqueue(FIFOBuffer *fifo, const char *req_pipe, const char *resp_pipe, cons
 
     pthread_mutex_lock(&fifo->mutex);
     snprintf(fifo->buffer[fifo->rear], MAX_PIPE_PATH_LENGTH * 3 + 3, "%s|%s|%s", req_pipe, resp_pipe, notif_pipe); // Format the message
+    fifo->buffer[fifo->rear][MAX_PIPE_PATH_LENGTH * 3 + 2] = '\0'; // Explicitly null-terminate
     fifo->rear = (fifo->rear + 1) % MAX_CLIENTS; // Update the rear pointer
     pthread_mutex_unlock(&fifo->mutex);
 

@@ -33,7 +33,7 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
     close(server_fd);
     return 1;
   }
-
+  close(server_fd);
   return 0;
 }
  
