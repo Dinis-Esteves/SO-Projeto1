@@ -29,6 +29,10 @@ int still_running = 1;
 pthread_mutex_t active_backups_mutex;
 char fifo_pathname[MAX_PIPE_PATH_LENGTH];
 
+// function to the manager pool threads
+void* manager_pool() {
+  return NULL;
+}
 // function to pass in the threads
 void* handle_job() {
   char* f;
@@ -288,6 +292,14 @@ int main(int argc, char *argv[]) {
     // create the host thread
     pthread_t *host_thread = malloc(sizeof(pthread_t));
     pthread_create(host_thread, NULL, &host, NULL);
+
+    // create the pool of manager threads
+    for (int i = 0; i < NUM_THREADS_MANAGER_POOL; i++) {
+      if (pthread_create(&threads[i], NULL, &manager_pool, NULL) != 0) {
+          fprintf(stderr, "Failed to create thread %d\n", i);
+          exit(EXIT_FAILURE);
+      }
+    }
 
     // create the number of threads specified in the input
     for (int i = 0; i < max_threads; i++) {
