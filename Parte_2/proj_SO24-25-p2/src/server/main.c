@@ -222,19 +222,20 @@ void* host() {
         exit(EXIT_FAILURE);
     }
 
-    // Open the pipe once for the entire duration
-    int fd = open(fifo_pathname, O_RDONLY);
-    if (fd == -1) {
-        perror("[ERR]: open failed");
-        exit(EXIT_FAILURE);
-    }
-
     while (running) {
-      char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4] = {0};
+        char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4] = {0};
+
+        // Open the pipe for reading
+        int fd = open(fifo_pathname, O_RDONLY);
+        if (fd == -1) {
+            perror("[ERR]: open failed");
+            exit(EXIT_FAILURE);
+        }
 
         // Keep reading from the FIFO
         int result = read_string(fd, buffer);
-        sleep(1);
+        close(fd); // Close the FIFO after reading
+
         if (result == -1) {
             perror("Failed to read from FIFO");
             break;  // If error reading, break out of the loop
@@ -251,14 +252,10 @@ void* host() {
         // Enqueue the connect request
         enqueue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
 
-        printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path);
     }
 
-    close(fd); // Close FIFO when done
     return NULL;
 }
-
-
 
 int main(int argc, char *argv[]) {
 

@@ -70,6 +70,7 @@ int write_all(int fd, const void *buffer, size_t size) {
   return 1;
 }
 
+
 static struct timespec delay_to_timespec(unsigned int delay_ms) {
     return (struct timespec){delay_ms / 1000, (delay_ms % 1000) * 1000000};
 }
