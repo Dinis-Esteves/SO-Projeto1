@@ -39,7 +39,7 @@ int read_all(int fd, void *buffer, size_t size, int *intr) {
 int read_string(int fd, char *str) {
   ssize_t bytes_read = 0;
   char ch;
-  while (bytes_read < MAX_STRING_SIZE) {
+  while (bytes_read < MAX_STRING_SIZE - 1) {
     if (read(fd, &ch, 1) != 1) {
       return -1;
     }
