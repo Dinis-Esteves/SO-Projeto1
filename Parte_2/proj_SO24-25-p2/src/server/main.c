@@ -264,8 +264,9 @@ int main(int argc, char *argv[]) {
 
     pthread_mutex_init(&active_backups_mutex, NULL);
 
-    pthread_t *threads;
+    pthread_t *threads, *manager_threads;
     threads = malloc((long unsigned int)max_threads * sizeof(pthread_t));
+    manager_threads = malloc((long unsigned int)NUM_THREADS_MANAGER_POOL * sizeof(pthread_t));
 
     dir = argv[1];
 
@@ -295,7 +296,8 @@ int main(int argc, char *argv[]) {
 
     // create the pool of manager threads
     for (int i = 0; i < NUM_THREADS_MANAGER_POOL; i++) {
-      if (pthread_create(&threads[i], NULL, &manager_pool, NULL) != 0) {
+
+      if (pthread_create(&manager_threads[i], NULL, &manager_pool, NULL) != 0) {
           fprintf(stderr, "Failed to create thread %d\n", i);
           exit(EXIT_FAILURE);
       }
@@ -342,6 +344,7 @@ int main(int argc, char *argv[]) {
     running = 0;
 
     free(threads);
+    free(manager_threads);
     free(active_backups);
     free(host_thread);
     pthread_mutex_destroy(&active_backups_mutex);
