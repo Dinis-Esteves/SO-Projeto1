@@ -3,9 +3,11 @@
 
 #define TABLE_SIZE 26
 #define MAX_FILES 10000
+#define MAX_CLIENTS 25
 
 #include <stddef.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 typedef struct KeyNode {
     char *key;
@@ -23,6 +25,41 @@ typedef struct stack {
     char* arr[MAX_FILES];          
     pthread_mutex_t mutex;   
 } stack;
+
+typedef struct FIFOBuffer {
+    char **buffer;         
+    int size;
+    int front;
+    int rear;
+    sem_t empty;
+    sem_t full;
+    pthread_mutex_t mutex;
+} FIFOBuffer; 
+
+/// Initializes the FIFO buffer.
+/// @return Newly created FIFO buffer, NULL on failure
+FIFOBuffer* init_FIFO_Buffer();
+
+/// Destroys the FIFO buffer.
+/// @param buffer FIFO buffer to be destroyed.
+/// @return void
+void destroy_FIFO_Buffer(FIFOBuffer *buffer);
+
+/// Enqueues a new element to the FIFO buffer.
+/// @param fifo FIFO buffer to be modified.
+/// @param req_pipe Request pipe to be enqueued.
+/// @param resp_pipe Response pipe to be enqueued.
+/// @param notif_pipe Notification pipe to be enqueued.
+/// @return void
+void enqueue(FIFOBuffer *fifo, const char *req_pipe, const char *resp_pipe, const char *notif_pipe);
+
+/// Dequeues an element from the FIFO buffer.
+/// @param fifo FIFO buffer to be modified.
+/// @param req_pipe Request pipe to be dequeued.
+/// @param resp_pipe Response pipe to be dequeued.
+/// @param notif_pipe Notification pipe to be dequeued.
+/// @return void
+void dequeue(FIFOBuffer *fifo, char *req_pipe, char *resp_pipe, char *notif_pipe);
 
 /// Creates a new stack.
 /// @return Newly created stack, NULL on failure
@@ -79,5 +116,7 @@ void free_table(HashTable *ht);
 /// @param key Key to be hashed.
 /// @return Hashed key.
 int hash(const char *key);
+
+
 
 #endif  // KVS_H

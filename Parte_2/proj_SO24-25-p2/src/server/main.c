@@ -20,6 +20,7 @@
 
 // global variables
 stack* s;
+FIFOBuffer* pc_buffer;
 int max_backups;
 int running;
 int max_threads;
@@ -31,6 +32,45 @@ char fifo_pathname[MAX_PIPE_PATH_LENGTH];
 
 // function to the manager pool threads
 void* manager_pool() {
+
+  // i'll make it run until the jobs ended for now but im pretty sure it isn't what they want
+  while (still_running) {
+    char req_pipe_path[MAX_PIPE_PATH_LENGTH];
+    char resp_pipe_path[MAX_PIPE_PATH_LENGTH];
+    char notif_pipe_path[MAX_PIPE_PATH_LENGTH];
+
+    // dequeue the connect request
+    dequeue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
+
+    // open the pipes
+    int req_fd = open(req_pipe_path, O_RDONLY | O_NONBLOCK);
+
+    if (req_fd == -1) {
+      perror("Failed to open request pipe");
+      continue;
+    }
+
+    int resp_fd = open(resp_pipe_path, O_WRONLY);
+
+    if (resp_fd == -1) {
+      perror("Failed to open response pipe");
+      close(req_fd);
+      continue;
+    }
+
+    int notif_fd = open(notif_pipe_path, O_WRONLY);
+
+    if (notif_fd == -1) {
+      perror("Failed to open notification pipe");
+      close(req_fd);
+      close(resp_fd);
+      continue;
+    }
+
+    // read the request pipe
+    
+
+  }
   return NULL;
 }
 // function to pass in the threads
@@ -210,33 +250,10 @@ void* host() {
     // parse the connect request
     sscanf(buffer, "1|%[^|]|%[^|]|%[^|]", req_pipe_path, resp_pipe_path, notif_pipe_path);
 
+    // enqueue the connect request
+    enqueue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
+
     // printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path)
-  
-    // open the pipes
-    int req_fd = open(req_pipe_path, O_RDONLY | O_NONBLOCK);
-
-    if (req_fd == -1) {
-      perror("Failed to open request pipe");
-      continue;
-    }
-
-    int resp_fd = open(resp_pipe_path, O_WRONLY);
-
-    if (resp_fd == -1) {
-      perror("Failed to open response pipe");
-      close(req_fd);
-      continue;
-    }
-
-    int notif_fd = open(notif_pipe_path, O_WRONLY);
-
-    if (notif_fd == -1) {
-      perror("Failed to open notification pipe");
-      close(req_fd);
-      close(resp_fd);
-      continue;
-    }    
-        
   }
 
   close(fd);
@@ -281,6 +298,11 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
+    pc_buffer = init_FIFO_Buffer();
+    if (pc_buffer == NULL) {
+      fprintf(stderr, "Failed to create buffer\n");
+      return 1;
+    }
     struct dirent* d;
 
     DIR* folder = opendir(argv[1]);

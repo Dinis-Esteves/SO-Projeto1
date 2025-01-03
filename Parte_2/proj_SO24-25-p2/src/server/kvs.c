@@ -1,4 +1,5 @@
 #include "kvs.h"
+#include "../common/constants.h"
 #include "string.h"
 #include <pthread.h>
 #include <stdio.h>
@@ -152,4 +153,48 @@ void destroy_stack(stack* s) {
     free(s);
 }
 
+FIFOBuffer* init_FIFO_buffer() {
+    FIFOBuffer *fifo = (FIFOBuffer *)malloc(sizeof(FIFOBuffer)); 
+    if (!fifo) {
+        perror("Failed to allocate memory for FIFO buffer");
+        exit(EXIT_FAILURE);
+    }
+    fifo->front = 0;
+    fifo->rear = 0;
+    sem_init(&fifo->empty, 0, MAX_CLIENTS); // Initially, all slots are empty
+    sem_init(&fifo->full, 0, 0);        // Initially, no slots are full
+    pthread_mutex_init(&fifo->mutex, NULL);
+    return fifo;
+}
 
+void destroy_FIFO_buffer(FIFOBuffer *fifo) {
+    sem_destroy(&fifo->empty);
+    sem_destroy(&fifo->full);
+    pthread_mutex_destroy(&fifo->mutex);
+    free(fifo);
+}
+
+void enqueue(FIFOBuffer *fifo, const char *req_pipe, const char *resp_pipe, const char *notif_pipe) {
+    sem_wait(&fifo->empty);
+
+    pthread_mutex_lock(&fifo->mutex);
+    snprintf(fifo->buffer[fifo->rear], MAX_PIPE_PATH_LENGTH * 3 + 3, "%s|%s|%s", req_pipe, resp_pipe, notif_pipe); // Format the message
+    fifo->rear = (fifo->rear + 1) % MAX_CLIENTS; // Update the rear pointer
+    pthread_mutex_unlock(&fifo->mutex);
+
+    sem_post(&fifo->full); // Signal that a slot is now full
+}
+
+void dequeue(FIFOBuffer *fifo, char *req_pipe, char *resp_pipe, char *notif_pipe) {
+    sem_wait(&fifo->full); // Wait for a full slot
+
+    pthread_mutex_lock(&fifo->mutex);
+    char *message = fifo->buffer[fifo->front];
+    fifo->front = (fifo->front + 1) % MAX_CLIENTS; // Update the front pointer
+    pthread_mutex_unlock(&fifo->mutex);
+
+    // Parse the message into the three pipes
+    sscanf(message, "%39[^|]|%39[^|]|%39[^|]", req_pipe, resp_pipe, notif_pipe);
+
+    sem_post(&fifo->empty); // Signal that a slot is now empty
+}
