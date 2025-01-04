@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <stdlib.h>
 #include "api.h"
 #include "parser.h"
 #include "src/client/api.h"
@@ -31,53 +30,8 @@ int main(int argc, char* argv[]) {
   strncat(resp_pipe_path, argv[1], strlen(argv[1]) * sizeof(char));
   strncat(notif_pipe_path, argv[1], strlen(argv[1]) * sizeof(char));
 
-  // open pipes
-  unlink(req_pipe_path);
-  unlink(resp_pipe_path);
-  unlink(notif_pipe_path);
-
-  // create the request pipe
-  if (mkfifo(req_pipe_path, 0640) != 0) {
-    perror("[ERR]: mkfifo failed");
-    exit(EXIT_FAILURE);
-  }
-
-  // create the response pipe 
-  if (mkfifo(resp_pipe_path, 0640) != 0) {
-    perror("[ERR]: mkfifo failed");
-    exit(EXIT_FAILURE);
-  }
-
-
-  // create the notifications pipe 
-  if (mkfifo(notif_pipe_path, 0640) != 0) {
-    perror("[ERR]: mkfifo failed");
-    exit(EXIT_FAILURE);
-  }
-
-  // open notification pipe
-  int notif_fd = open(notif_pipe_path, O_RDONLY | O_NONBLOCK);
-  if (notif_fd < 0) {
-    perror("Error opening notification pipe");
-    return 1;
-  }
-  // open response pipe
-  int resp_fd = open(resp_pipe_path, O_RDONLY | O_NONBLOCK);
-  if (resp_fd < 0) {
-    perror("Error opening response pipe");
-    return 1;
-  }
-
   kvs_connect(req_pipe_path, resp_pipe_path, argv[2], notif_pipe_path);
 
-  // open request pipe
-
-  int req_fd = open(req_pipe_path, O_WRONLY);
-  if (req_fd < 0) {
-    perror("Error opening request pipe");
-    return 1;
-  }
-  
   while (1) {
     switch (get_next(STDIN_FILENO)) {
       case CMD_DISCONNECT:
@@ -110,7 +64,7 @@ int main(int argc, char* argv[]) {
         }
          
         if (kvs_unsubscribe(keys[0])) {
-            fprintf(stderr, "Command subscribe failed\n");
+            fprintf(stderr, "Command unsubscribe failed\n");
         }
 
         break;

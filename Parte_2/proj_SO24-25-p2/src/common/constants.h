@@ -4,3 +4,4 @@
 #define MAX_PIPE_PATH_LENGTH 40 // tamanho max do caminho do pipe
 #define MAX_STRING_SIZE 40
 #define MAX_NUMBER_SUB 10
+#define MAX_REQUEST_SIZE 43

@@ -34,7 +34,7 @@ char fifo_pathname[MAX_PIPE_PATH_LENGTH];
 void* manager_pool() {
 
   // i'll make it run until the jobs ended for now but im pretty sure it isn't what they want
-  while (still_running) {
+  while (running) {
     char req_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
     char resp_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
     char notif_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
@@ -43,8 +43,9 @@ void* manager_pool() {
     dequeue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
 
     printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path);
+
     // open the pipes
-    int req_fd = open(req_pipe_path, O_RDONLY | O_NONBLOCK);
+    int req_fd = open(req_pipe_path, O_RDONLY);
 
     if (req_fd == -1) {
       perror("Failed to open request pipe");
@@ -67,13 +68,26 @@ void* manager_pool() {
       close(resp_fd);
       continue;
     }
-
-    // read the request pipe
     
+    while(running) {
+      // read the request pipe
+      char buffer[MAX_REQUEST_SIZE];
+      int result = read_string(req_fd, buffer);
 
+      if (result == -1) {
+        perror("Failed to read from request pipe");
+        break;
+      } else if (result == 0) {
+        continue;
+      } else {
+        printf("Received: %s\n", buffer);
+      }  
+
+    }
   }
   return NULL;
 }
+
 // function to pass in the threads
 void* handle_job() {
   char* f;
