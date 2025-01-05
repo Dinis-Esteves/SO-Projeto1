@@ -6,9 +6,10 @@
 #include <unistd.h>
 #include <stdio.h>
 #include "api.h"
-#include "src/common/constants.h"
-#include "src/common/protocol.h"
-#include "src/common/io.h"
+#include <errno.h>
+#include "../common/constants.h"
+//#include "../common/protocol.h"
+#include "../common/io.h"
 #define CONNECT_MESSAGE_LEN (MAX_PIPE_PATH_LENGTH * 3 + 4)
 
 // global variables for the pipe fds
@@ -23,7 +24,6 @@ void* print_notifications() {
   while (1) {
     int n = read_string(notif_fd, buffer);
     if (n > 0) {
-      buffer[n] = '\0';
       printf("%s\n", buffer);
     }
   }
@@ -121,15 +121,26 @@ int kvs_subscribe(const char* key) {
   char request[MAX_REQUEST_SIZE] = {0};
   snprintf(request, MAX_REQUEST_SIZE, "3|%s", key);
 
-  printf("%s\n", key);printf("%d\n", req_fd);
-
   // write the message throw the request pipe
   if (write_all(req_fd, request, MAX_REQUEST_SIZE) < 0) {
     perror("Error writing to request pipe");
     return 1;
   }
 
-  perror(key);
+  sleep(1);
+
+  // print the response from the server
+  char response[7] = {0};
+  if (read_string(resp_fd, response) < 0 && errno != EAGAIN) {
+    perror("Error reading from response pipe");
+    return 1;
+  }
+  int op_code;
+  char response_code[5];
+  sscanf(response,"%d|%s", &op_code, response_code);
+  printf("Server returned %s for operation: %d\n", response_code, op_code);
+
+  //perror(key);
   return 0;
 }
 

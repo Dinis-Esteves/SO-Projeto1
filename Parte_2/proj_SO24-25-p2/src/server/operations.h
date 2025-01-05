@@ -27,6 +27,12 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
 /// @return 0 if the key reading, 1 otherwise.
 int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd);
 
+/// Subscribes a client to a key.
+/// @param key Key to be subscribed to.
+/// @param client_fd File descriptor of the client to be subscribed.
+/// @return 0 if the key was found and the client was subscribed, 1 otherwise.
+int kvs_subscribe(const char *key, int client_fd);
+
 /// Deletes key value pairs from the KVS.
 /// @param num_pairs Number of pairs to read.
 /// @param keys Array of keys' strings.

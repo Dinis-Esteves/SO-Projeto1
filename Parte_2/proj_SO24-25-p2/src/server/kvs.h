@@ -12,6 +12,7 @@
 typedef struct KeyNode {
     char *key;
     char *value;
+    int client_fds[MAX_CLIENTS];
     struct KeyNode *next;
 } KeyNode;
 
@@ -107,6 +108,13 @@ char* read_pair(HashTable *ht, const char *key);
 /// @param key Key of the pair to read.
 /// @return 0 if the node was appended successfully, 1 otherwise.
 int delete_pair(HashTable *ht, const char *key);
+
+/// Subscribes a client to a key.
+/// @param ht Hash table to be modified.
+/// @param key Key to be subscribed to.
+/// @param client_fd File descriptor of the client to be subscribed.
+/// @return 1 if the key was not found, 0 otherwise.
+int subscribe_key(HashTable *ht, const char *key, int client_fd);
 
 /// Frees the hashtable.
 /// @param ht Hash table to be deleted.

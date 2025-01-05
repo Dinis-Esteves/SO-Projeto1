@@ -47,7 +47,6 @@ void sortByHash(char keys[][MAX_STRING_SIZE], char values[][MAX_STRING_SIZE], si
   }
 }
 
-
 int* lock_all_keys(HashTable *ht, char key[][MAX_STRING_SIZE], size_t size, char type) {
   int *locks = calloc(TABLE_SIZE, sizeof(int) * TABLE_SIZE);
 
@@ -111,6 +110,15 @@ int kvs_terminate() {
 
   free_table(kvs_table);
   return 0;
+}
+
+int kvs_subscribe(const char *key, int client_fd) {
+  if (kvs_table == NULL) {
+    fprintf(stderr, "KVS state must be initialized\n");
+    return 1;
+  }
+
+  return subscribe_key(kvs_table, key, client_fd);
 }
 
 int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_STRING_SIZE]) {

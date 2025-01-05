@@ -1,5 +1,6 @@
 #include "kvs.h"
 #include "../common/constants.h"
+#include "../common/io.h"
 #include "string.h"
 #include <pthread.h>
 #include <stdio.h>
@@ -31,6 +32,17 @@ struct HashTable* create_hash_table() {
   return ht;
 }
 
+void notify_clients(int fds[], const char *key, const char* value) {
+    char message[sizeof(key) + sizeof(value) + 4] = {0};
+    snprintf(message, MAX_STRING_SIZE, "(%s,%s)", key, value);
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (fds[i] > 0) {
+            write_all(fds[i], message, sizeof(message));
+        }
+    }
+}
+
 int write_pair(HashTable *ht, const char *key, const char *value) {
     int index = hash(key);
     KeyNode *keyNode = ht->table[index];
@@ -39,6 +51,7 @@ int write_pair(HashTable *ht, const char *key, const char *value) {
         if (strcmp(keyNode->key, key) == 0) {
             free(keyNode->value);
             keyNode->value = strdup(value);
+            notify_clients(keyNode->client_fds, key, value);
             return 0;
         }
         keyNode = keyNode->next; // Move to the next node
@@ -76,6 +89,7 @@ int delete_pair(HashTable *ht, const char *key) {
     // Search for the key node
     while (keyNode != NULL) {
         if (strcmp(keyNode->key, key) == 0) {
+            notify_clients(keyNode->client_fds, key, "DELETED");
             // Key found; delete this node
             if (prevNode == NULL) {
                 // Node to delete is the first node in the list
@@ -92,6 +106,29 @@ int delete_pair(HashTable *ht, const char *key) {
         }
         prevNode = keyNode; // Move prevNode to current node
         keyNode = keyNode->next; // Move to the next node
+    }
+    return 1;
+}
+
+int subscribe_key(HashTable *ht, const char *key, int client_fd) {
+    int index = hash(key);
+    KeyNode *keyNode = ht->table[index];
+
+    // find the key in the hash table
+    while (keyNode != NULL) {
+        if (strcmp(keyNode->key, key) == 0) {
+
+            // find an empty slot in the client_fds array
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (keyNode->client_fds[i] <= 0) {
+                    keyNode->client_fds[i] = client_fd;
+                    return 0;
+                }
+            }
+
+            return 0;
+        }
+        keyNode = keyNode->next;
     }
     return 1;
 }

@@ -14,7 +14,8 @@
 #include "constants.h"
 #include "kvs.h"
 #include "../common/io.h" 
-#include "../common/constants.h" 
+#include "../common/constants.h"
+#include "../common/protocol.h"
 #include "parser.h"
 #include "operations.h"
 
@@ -73,16 +74,26 @@ void* manager_pool() {
       // read the request pipe
       char buffer[MAX_REQUEST_SIZE];
       int result = read_string(req_fd, buffer);
-
       if (result == -1) {
         perror("Failed to read from request pipe");
         break;
       } else if (result == 0) {
         continue;
       } else {
-        printf("Received: %s\n", buffer);
+        int op_code = 0;
+        char key[MAX_STRING_SIZE] = {0};
+        sscanf(buffer, "%d|%s", &op_code, key);
+        
+        switch (op_code) {
+        
+        case OP_CODE_SUBSCRIBE:
+          if (kvs_subscribe(key, notif_fd) == 0) {
+            write_all(resp_fd, "3|OK", 4);
+          } else {
+            write_all(resp_fd, "3|ERROR", 7);
+          }
+        }
       }  
-
     }
   }
   return NULL;

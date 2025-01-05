@@ -1,3 +1,6 @@
-WRITE [(IO,AI)]
+WRITE [(TEST,1)]
 #Wait for 10 seconds to have time to test the client
-WAIT 10000
+WAIT 5000
+WRITE [(TEST,2)]
+READ [TEST]
+WAIT 5000
