@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -8,13 +9,29 @@
 #include "src/common/constants.h"
 #include "src/common/protocol.h"
 #include "src/common/io.h"
+#define CONNECT_MESSAGE_LEN (MAX_PIPE_PATH_LENGTH * 3 + 4)
 
 // global variables for the pipe fds
 int req_fd;
 int resp_fd;
 int notif_fd;
+pthread_t notif_thread;
 
-#define CONNECT_MESSAGE_LEN (MAX_PIPE_PATH_LENGTH * 3 + 4)
+void* print_notifications() {
+  
+  char buffer[MAX_STRING_SIZE];
+  while (1) {
+    int n = read_string(notif_fd, buffer);
+    if (n > 0) {
+      buffer[n] = '\0';
+      printf("%s\n", buffer);
+    }
+  }
+  return NULL;
+
+}
+
+
 
 int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char const* server_pipe_path,
                 char const* notif_pipe_path) {
@@ -49,7 +66,11 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
     perror("Error opening notification pipe");
     return 1;
   }
+  
+ // create a thread to print the notifications
 
+  pthread_create(&notif_thread, NULL, print_notifications, NULL);
+  
   // open response pipe
   resp_fd = open(resp_pipe_path, O_RDONLY | O_NONBLOCK);
   if (resp_fd < 0) {
