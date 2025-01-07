@@ -69,6 +69,9 @@ void* manager_pool() {
       close(resp_fd);
       continue;
     }
+
+    // write the response to the client
+    write_all(resp_fd, "1|OK", 4);
     
     while(running) {
       // read the request pipe

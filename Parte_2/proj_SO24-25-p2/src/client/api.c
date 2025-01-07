@@ -31,8 +31,6 @@ void* print_notifications() {
 
 }
 
-
-
 int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char const* server_pipe_path,
                 char const* notif_pipe_path) {
 
@@ -107,6 +105,18 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
     return 1;
   }
 
+  // print the response from the server
+  char response[7] = {0};
+  if (read_string(resp_fd, response) < 0 && errno != EAGAIN) {
+    perror("Error reading from response pipe");
+    return 1;
+  }
+
+  int op_code;
+  char response_code[5];
+  sscanf(response,"%d|%s", &op_code, response_code);
+  printf("Server returned %s for operation: %d\n", response_code, op_code);
+
   return 0;
 
 }
@@ -149,5 +159,3 @@ int kvs_unsubscribe(const char* key) {
   perror(key);
   return 0;
 }
-
-
