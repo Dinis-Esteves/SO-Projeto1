@@ -31,6 +31,35 @@ void* print_notifications() {
 
 }
 
+char* get_operation(int op_code) {
+  switch (op_code) {
+    case 1:
+      return "connect";
+    case 2:
+      return "disconnect";
+    case 3:
+      return "subscribe";
+    case 4:
+      return "unsubscribe";
+    default:
+      return "unknown";
+  }
+}
+
+void print_response() {
+
+  char response[7] = {0};
+  if (read_string(resp_fd, response) < 0 && errno != EAGAIN) {
+    perror("Error reading from response pipe");
+  }
+
+  int op_code;
+  char response_code[5];
+  sscanf(response,"%d|%s", &op_code, response_code);
+  char* operation = get_operation(op_code); 
+  printf("Server returned %s for operation: %s\n", response_code, operation);
+}
+
 int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char const* server_pipe_path,
                 char const* notif_pipe_path) {
 
@@ -66,7 +95,6 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
   }
   
  // create a thread to print the notifications
-
   pthread_create(&notif_thread, NULL, print_notifications, NULL);
   
   // open response pipe
@@ -106,16 +134,7 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
   }
 
   // print the response from the server
-  char response[7] = {0};
-  if (read_string(resp_fd, response) < 0 && errno != EAGAIN) {
-    perror("Error reading from response pipe");
-    return 1;
-  }
-
-  int op_code;
-  char response_code[5];
-  sscanf(response,"%d|%s", &op_code, response_code);
-  printf("Server returned %s for operation: %d\n", response_code, op_code);
+  print_response();
 
   return 0;
 
@@ -140,15 +159,7 @@ int kvs_subscribe(const char* key) {
   sleep(1);
 
   // print the response from the server
-  char response[7] = {0};
-  if (read_string(resp_fd, response) < 0 && errno != EAGAIN) {
-    perror("Error reading from response pipe");
-    return 1;
-  }
-  int op_code;
-  char response_code[5];
-  sscanf(response,"%d|%s", &op_code, response_code);
-  printf("Server returned %s for operation: %d\n", response_code, op_code);
+  print_response();
 
   //perror(key);
   return 0;

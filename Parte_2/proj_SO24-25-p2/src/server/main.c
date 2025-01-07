@@ -244,7 +244,7 @@ void* host() {
     // Remove pipe if it exists
     unlink(fifo_pathname);
 
-    // Create the register pipe
+    // Create the connection pipe
     if (mkfifo(fifo_pathname, 0640) != 0) {
         perror("[ERR]: mkfifo failed");
         exit(EXIT_FAILURE);
