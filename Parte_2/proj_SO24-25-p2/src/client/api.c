@@ -47,9 +47,8 @@ char* get_operation(int op_code) {
 }
 
 void print_response() {
-
   char response[7] = {0};
-  if (read_string(resp_fd, response) < 0 && errno != EAGAIN) {
+  if (read_string(resp_fd, response) < 0) {
     perror("Error reading from response pipe");
   }
 
@@ -86,23 +85,6 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
     perror("[ERR]: mkfifo failed");
     exit(EXIT_FAILURE);
   }
-
-  // open notification pipe
-  notif_fd = open(notif_pipe_path, O_RDONLY | O_NONBLOCK);
-  if (notif_fd < 0) {
-    perror("Error opening notification pipe");
-    return 1;
-  }
-  
- // create a thread to print the notifications
-  pthread_create(&notif_thread, NULL, print_notifications, NULL);
-  
-  // open response pipe
-  resp_fd = open(resp_pipe_path, O_RDONLY | O_NONBLOCK);
-  if (resp_fd < 0) {
-    perror("Error opening response pipe");
-    return 1;
-  }
   
   // open server pipe
   char tmp[MAX_PIPE_PATH_LENGTH];
@@ -122,9 +104,25 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
     perror("Error writing to server pipe");
     close(server_fd);
     return 1;
-  }
-
+  }  
+  
   close(server_fd);
+
+  // open notification pipe
+  notif_fd = open(notif_pipe_path, O_RDONLY);
+  if (notif_fd < 0) {
+    perror("Error opening notification pipe");
+    return 1;
+  }
+ // create a thread to print the notifications
+  pthread_create(&notif_thread, NULL, print_notifications, NULL);
+  
+  // open response pipe
+  resp_fd = open(resp_pipe_path, O_RDONLY);
+  if (resp_fd < 0) {
+    perror("Error opening response pipe");
+    return 1;
+  }
 
   // open request pipe
   req_fd = open(req_pipe_path, O_WRONLY);
@@ -135,7 +133,6 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
 
   // print the response from the server
   print_response();
-
   return 0;
 
 }
@@ -155,8 +152,6 @@ int kvs_subscribe(const char* key) {
     perror("Error writing to request pipe");
     return 1;
   }
-
-  sleep(1);
 
   // print the response from the server
   print_response();

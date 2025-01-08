@@ -45,11 +45,11 @@ void* manager_pool() {
 
     printf("req: %s\nresp: %s\nnotif: %s\n", req_pipe_path, resp_pipe_path, notif_pipe_path);
 
-    // open the pipes
-    int req_fd = open(req_pipe_path, O_RDONLY);
+    // open the pipes 
+    int notif_fd = open(notif_pipe_path, O_WRONLY);
 
-    if (req_fd == -1) {
-      perror("Failed to open request pipe");
+    if (notif_fd == -1) {
+      perror("Failed to open notification pipe");
       continue;
     }
 
@@ -57,22 +57,22 @@ void* manager_pool() {
 
     if (resp_fd == -1) {
       perror("Failed to open response pipe");
-      close(req_fd);
+      close(notif_fd);
       continue;
     }
+    
+    int req_fd = open(req_pipe_path, O_RDONLY);
 
-    int notif_fd = open(notif_pipe_path, O_WRONLY);
-
-    if (notif_fd == -1) {
-      perror("Failed to open notification pipe");
-      close(req_fd);
+    if (req_fd == -1) {
+      perror("Failed to open request pipe");
+      close(notif_fd);
       close(resp_fd);
       continue;
     }
 
     // write the response to the client
-    write_all(resp_fd, "1|OK", 4);
-    
+    write_all(resp_fd, "1|OK\0", 5);
+
     while(running) {
       // read the request pipe
       char buffer[MAX_REQUEST_SIZE];
@@ -91,9 +91,9 @@ void* manager_pool() {
         
         case OP_CODE_SUBSCRIBE:
           if (kvs_subscribe(key, notif_fd) == 0) {
-            write_all(resp_fd, "3|OK", 4);
+            write_all(resp_fd, "3|OK\0", 5);
           } else {
-            write_all(resp_fd, "3|ERROR", 7);
+            write_all(resp_fd, "3|ERROR\0", 8);
           }
         }
       }  
