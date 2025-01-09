@@ -33,6 +33,12 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd);
 /// @return 0 if the key was found and the client was subscribed, 1 otherwise.
 int kvs_subscribe(const char *key, int client_fd);
 
+/// Unsubscribes a client from a key.
+/// @param key Key to be unsubscribed from.
+/// @param client_fd File descriptor of the client to be unsubscribed.
+/// @return 0 if the key was found and the client was unsubscribed, 1 otherwise.
+int kvs_unsubscribe(const char *key, int client_fd);
+
 /// Deletes key value pairs from the KVS.
 /// @param num_pairs Number of pairs to read.
 /// @param keys Array of keys' strings.

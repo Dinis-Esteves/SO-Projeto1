@@ -116,6 +116,13 @@ int delete_pair(HashTable *ht, const char *key);
 /// @return 1 if the key was not found, 0 otherwise.
 int subscribe_key(HashTable *ht, const char *key, int client_fd);
 
+/// Unsubscribes a client from a key.
+/// @param ht Hash table to be modified.
+/// @param key Key to be unsubscribed from.
+/// @param client_fd File descriptor of the client to be unsubscribed.
+/// @return 1 if the key was not found, 0 otherwise.
+int unsubscribe_key(HashTable *ht, const char *key, int client_fd);
+
 /// Frees the hashtable.
 /// @param ht Hash table to be deleted.
 void free_table(HashTable *ht);

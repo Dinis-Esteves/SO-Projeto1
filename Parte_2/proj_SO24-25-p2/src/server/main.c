@@ -95,6 +95,18 @@ void* manager_pool() {
           } else {
             write_all(resp_fd, "3|ERROR\0", 8);
           }
+
+          break;
+          
+        case OP_CODE_UNSUBSCRIBE:
+          if (kvs_unsubscribe(key, notif_fd) == 0) {
+            write_all(resp_fd, "4|OK\0", 5);
+          } else {
+            write_all(resp_fd, "4|ERROR\0", 8);
+          }
+
+          break;
+
         }
       }  
     }

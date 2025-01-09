@@ -121,6 +121,15 @@ int kvs_subscribe(const char *key, int client_fd) {
   return subscribe_key(kvs_table, key, client_fd);
 }
 
+int kvs_unsubscribe(const char *key, int client_fd) {
+  if (kvs_table == NULL) {
+    fprintf(stderr, "KVS state must be initialized\n");
+    return 1;
+  }
+
+  return unsubscribe_key(kvs_table, key, client_fd);
+}
+
 int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_STRING_SIZE]) {
   if (kvs_table == NULL) {
     fprintf(stderr, "KVS state must be initialized\n");

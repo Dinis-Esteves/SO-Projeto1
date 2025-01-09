@@ -125,8 +125,30 @@ int subscribe_key(HashTable *ht, const char *key, int client_fd) {
                     return 0;
                 }
             }
+            return 1;
+        }
+        keyNode = keyNode->next;
+    }
+    return 1;
+}
 
-            return 0;
+int unsubscribe_key(HashTable *ht, const char *key, int client_fd) {
+    int index = hash(key);
+    KeyNode *keyNode = ht->table[index];
+
+    // find the key in the hash table
+    while (keyNode != NULL) {
+        if (strcmp(keyNode->key, key) == 0) {
+
+            // find the client_fd in the client_fds array
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                if (keyNode->client_fds[i] == client_fd) {
+                    keyNode->client_fds[i] = -1; //delete the client_fd
+                    return 0;
+                }
+            }
+
+            return 1;
         }
         keyNode = keyNode->next;
     }

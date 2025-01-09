@@ -147,7 +147,7 @@ int kvs_subscribe(const char* key) {
   char request[MAX_REQUEST_SIZE] = {0};
   snprintf(request, MAX_REQUEST_SIZE, "3|%s", key);
 
-  // write the message throw the request pipe
+  // write the message through the request pipe
   if (write_all(req_fd, request, MAX_REQUEST_SIZE) < 0) {
     perror("Error writing to request pipe");
     return 1;
@@ -161,7 +161,21 @@ int kvs_subscribe(const char* key) {
 }
 
 int kvs_unsubscribe(const char* key) {
-    // send unsubscribe message to request pipe and wait for response in response pipe
-  perror(key);
+  // send unsubscribe message to request pipe and wait for response in response pipe
+
+  // create the request message
+  char request[MAX_REQUEST_SIZE] = {0};
+  snprintf(request, MAX_REQUEST_SIZE, "4|%s", key);
+
+  // write the message through the request pipe
+  if (write(req_fd, request, MAX_REQUEST_SIZE) < 0) {
+    perror("Error writing to request pipe");
+    return 1;
+  }
+
+  // print response from the server
+  print_response();
+
+  //perror(key);
   return 0;
 }
