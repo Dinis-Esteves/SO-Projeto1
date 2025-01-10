@@ -39,6 +39,7 @@ void* manager_pool() {
     char req_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
     char resp_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
     char notif_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
+    char **subscribed_keys = calloc(MAX_NUMBER_SUB, MAX_STRING_SIZE);
 
     // dequeue the connect request
     dequeue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
@@ -72,8 +73,8 @@ void* manager_pool() {
 
     // write the response to the client
     write_all(resp_fd, "1|OK\0", 5);
-
-    while(running) {
+    int client_on = 1;
+    while(client_on) {
       // read the request pipe
       char buffer[MAX_REQUEST_SIZE];
       int result = read_string(req_fd, buffer);
@@ -92,6 +93,15 @@ void* manager_pool() {
         case OP_CODE_SUBSCRIBE:
           if (kvs_subscribe(key, notif_fd) == 0) {
             write_all(resp_fd, "3|OK\0", 5);
+
+          // add the key to the subscribed keys array
+          for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+            if (subscribed_keys[i] == NULL) {
+              subscribed_keys[i] = strdup(key);
+              break;
+            }
+          }
+
           } else {
             write_all(resp_fd, "3|ERROR\0", 8);
           }
@@ -101,12 +111,41 @@ void* manager_pool() {
         case OP_CODE_UNSUBSCRIBE:
           if (kvs_unsubscribe(key, notif_fd) == 0) {
             write_all(resp_fd, "4|OK\0", 5);
+
+            // remove the key from the subscribed keys array
+            for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+              if (subscribed_keys[i] != NULL && strcmp(subscribed_keys[i], key) == 0) {
+                subscribed_keys[i] = NULL;
+                break;
+              }
+            }
+
           } else {
             write_all(resp_fd, "4|ERROR\0", 8);
           }
 
           break;
 
+        case OP_CODE_DISCONNECT:
+
+        write_all(resp_fd, "2|OK\0", 5);
+
+        // unsubscribe all the keys
+        for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+          if (subscribed_keys[i] != NULL) {
+            kvs_unsubscribe(subscribed_keys[i], notif_fd);
+            free(subscribed_keys[i]);
+          }
+
+          // close the pipes
+          close(req_fd);
+          close(resp_fd);
+          close(notif_fd);
+          
+          free(subscribed_keys);
+          client_on = 0;
+          break;
+         }
         }
       }  
     }

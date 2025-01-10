@@ -184,7 +184,6 @@ int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     return 0;
 }
 
-
 int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE], int fd) {
     if (kvs_table == NULL) {
         fprintf(stderr, "KVS state must be initialized\n");

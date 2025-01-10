@@ -16,12 +16,13 @@
 int req_fd;
 int resp_fd;
 int notif_fd;
+int running = 1;
 pthread_t notif_thread;
 
 void* print_notifications() {
   
   char buffer[MAX_STRING_SIZE];
-  while (1) {
+  while (running) {
     int n = read_string(notif_fd, buffer);
     if (n > 0) {
       printf("%s\n", buffer);
@@ -138,7 +139,29 @@ int kvs_connect(char const* req_pipe_path, char const* resp_pipe_path, char cons
 }
  
 int kvs_disconnect(void) {
-  // close pipes and unlink pipe files
+
+  // create the request message
+  char request[MAX_REQUEST_SIZE] = {0};
+  snprintf(request, MAX_REQUEST_SIZE, "2|");
+
+  // write the message through the request pipe
+  if (write_all(req_fd, request, MAX_REQUEST_SIZE) < 0) {
+    perror("Error writing to request pipe");
+    return 1;
+  }
+
+  // print the response from the server
+  print_response();
+
+  // close the pipes
+  close(req_fd);
+  close(resp_fd);
+  close(notif_fd);
+
+  // stop the notification thread
+  running = 0;
+  pthread_join(notif_thread, NULL);
+
   return 0;
 }
 
