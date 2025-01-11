@@ -3,16 +3,17 @@
 
 #define TABLE_SIZE 26
 #define MAX_FILES 10000
-#define MAX_CLIENTS 25
 
 #include <stddef.h>
+#include "constants.h"
+#include "../common/constants.h"
 #include <pthread.h>
 #include <semaphore.h>
 
 typedef struct KeyNode {
     char *key;
     char *value;
-    int client_fds[MAX_CLIENTS];
+    int client_fds[MAX_SESSION_COUNT];
     struct KeyNode *next;
 } KeyNode;
 
@@ -28,7 +29,7 @@ typedef struct stack {
 } stack;
 
 typedef struct FIFOBuffer {
-    char *buffer[MAX_CLIENTS];         
+    char *buffer[MAX_SESSION_COUNT];         
     int size;
     int front;
     int rear;
@@ -37,9 +38,40 @@ typedef struct FIFOBuffer {
     pthread_mutex_t mutex;
 } FIFOBuffer; 
 
+typedef struct Client {
+    int req_fd;
+    int resp_fd;
+    int notif_fd;
+    char keys[MAX_NUMBER_SUB][MAX_STRING_SIZE];
+} Client;
+
 /// Initializes the FIFO buffer.
 /// @return Newly created FIFO buffer, NULL on failure
 FIFOBuffer* init_FIFO_buffer();
+
+/// Initializes a new client.
+/// @param req_fd File descriptor of the request pipe.
+/// @param resp_fd File descriptor of the response pipe.
+/// @param notif_fd File descriptor of the notification pipe.
+/// @return Newly created client, NULL on failure
+Client *init_client(int req_fd, int resp_fd, int notif_fd);
+
+/// Destroys the client.
+/// @param client Client to be destroyed.
+/// @return void
+void destroy_client(Client *client);
+
+/// Subscribes a client to a key.
+/// @param client Client to be subscribed.
+/// @param key Key to be subscribed to.
+/// @return void
+void subscribe_client(Client *client, const char *key);
+
+/// Unsubscribes a client from a key.
+/// @param client Client to be unsubscribed.
+/// @param key Key to be unsubscribed from.
+/// @return void
+void unsubscribe_client(Client *client, const char *key);
 
 /// Destroys the FIFO buffer.
 /// @param buffer FIFO buffer to be destroyed.

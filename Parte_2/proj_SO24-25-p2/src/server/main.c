@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <limits.h>
@@ -30,16 +31,39 @@ int *active_backups;
 int still_running = 1;
 pthread_mutex_t active_backups_mutex;
 char fifo_pathname[MAX_PIPE_PATH_LENGTH];
+Client *clients[MAX_SESSION_COUNT] = {0};
+
+// function to ignore the signals SIGUSR1 and SIGPIPE
+void ignore_signals() {
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, SIGUSR1);
+  sigaddset(&mask, SIGPIPE);
+  pthread_sigmask(SIG_BLOCK, &mask, NULL);
+  }
+
+void handle_sigpipe() {
+  return;
+}
 
 // function to the manager pool threads
-void* manager_pool() {
+void* manager_pool(void *idx) {
+
+  printf("manager thread %d\n", *(int*) idx);
+
+  signal(SIGPIPE, handle_sigpipe);
+
+  // ignore the SIGUSR1 signal
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, SIGUSR1);
+  pthread_sigmask(SIG_BLOCK, &mask, NULL);
 
   // i'll make it run until the jobs ended for now but im pretty sure it isn't what they want
-  while (running) {
+  while (1) {
     char req_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
     char resp_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
     char notif_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
-    char **subscribed_keys = calloc(MAX_NUMBER_SUB, MAX_STRING_SIZE);
 
     // dequeue the connect request
     dequeue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
@@ -71,6 +95,15 @@ void* manager_pool() {
       continue;
     }
 
+    Client *client = init_client(req_fd, resp_fd, notif_fd);
+
+    // add the client to the client list
+    for (int i; i < MAX_SESSION_COUNT; i++) {
+      if (clients[i] == NULL) {
+        clients[i] = client;
+      }
+    }
+
     // write the response to the client
     write_all(resp_fd, "1|OK\0", 5);
     int client_on = 1;
@@ -93,16 +126,9 @@ void* manager_pool() {
         case OP_CODE_SUBSCRIBE:
           if (kvs_subscribe(key, notif_fd) == 0) {
             write_all(resp_fd, "3|OK\0", 5);
-
-          // add the key to the subscribed keys array
-          for (int i = 0; i < MAX_NUMBER_SUB; i++) {
-            if (subscribed_keys[i] == NULL) {
-              subscribed_keys[i] = strdup(key);
-              break;
-            }
+            subscribe_client(client, key);
           }
-
-          } else {
+          else {
             write_all(resp_fd, "3|ERROR\0", 8);
           }
 
@@ -112,14 +138,7 @@ void* manager_pool() {
           if (kvs_unsubscribe(key, notif_fd) == 0) {
             write_all(resp_fd, "4|OK\0", 5);
 
-            // remove the key from the subscribed keys array
-            for (int i = 0; i < MAX_NUMBER_SUB; i++) {
-              if (subscribed_keys[i] != NULL && strcmp(subscribed_keys[i], key) == 0) {
-                subscribed_keys[i] = NULL;
-                break;
-              }
-            }
-
+            unsubscribe_client(client, key);
           } else {
             write_all(resp_fd, "4|ERROR\0", 8);
           }
@@ -132,9 +151,8 @@ void* manager_pool() {
 
         // unsubscribe all the keys
         for (int i = 0; i < MAX_NUMBER_SUB; i++) {
-          if (subscribed_keys[i] != NULL) {
-            kvs_unsubscribe(subscribed_keys[i], notif_fd);
-            free(subscribed_keys[i]);
+          if (strcmp(client->keys[i], "") != 0) {
+            kvs_unsubscribe(client->keys[i], notif_fd);
           }
 
           // close the pipes
@@ -142,7 +160,6 @@ void* manager_pool() {
           close(resp_fd);
           close(notif_fd);
           
-          free(subscribed_keys);
           client_on = 0;
           break;
          }
@@ -155,6 +172,10 @@ void* manager_pool() {
 
 // function to pass in the threads
 void* handle_job() {
+
+  // ignore the signals
+  ignore_signals();
+
   char* f;
   
   // run until the other funciton didn't end to span the dir and the stack is not empty
@@ -291,7 +312,42 @@ void* handle_job() {
     return NULL;
 }
 
+// function to handle the SIGUSR1 signal
+void handle_sigusr1(int signo) {
+
+  if (signo == SIGUSR1) {
+    printf("recebeu o signal\n");
+    for (int i; i < MAX_SESSION_COUNT; i++) {
+      Client *client = clients[i];
+      if (client != NULL) {
+         
+        // unsubscribe client keys
+        for (int j; j < MAX_NUMBER_SUB; j++) {
+          char *key = client->keys[j];
+          if (strcmp(key, "") != 0) {
+            kvs_unsubscribe(key, client->notif_fd);
+          }
+        }
+
+        // close client pipes
+        close(client->notif_fd);
+        close(client->resp_fd);
+        close(client->req_fd);
+        
+      }
+    }
+  }
+}
+
 void* host() {
+  // set the signal handler
+  signal(SIGUSR1, handle_sigusr1);
+  // ignore the SIGPIPE signal
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, SIGPIPE);
+  pthread_sigmask(SIG_BLOCK, &mask, NULL);
+
     // Remove pipe if it exists
     unlink(fifo_pathname);
 
@@ -301,19 +357,18 @@ void* host() {
         exit(EXIT_FAILURE);
     }
 
-    while (running) {
-        char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4] = {0};
+    // Open the pipe for reading
+    int fd = open(fifo_pathname, O_RDONLY);
+    if (fd == -1) {
+        perror("[ERR]: open failed");
+        exit(EXIT_FAILURE);
+    }
 
-        // Open the pipe for reading
-        int fd = open(fifo_pathname, O_RDONLY);
-        if (fd == -1) {
-            perror("[ERR]: open failed");
-            exit(EXIT_FAILURE);
-        }
+    while (1) {
+        char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4] = {0};
 
         // Keep reading from the FIFO
         int result = read_string(fd, buffer);
-        close(fd); // Close the FIFO after reading
 
         if (result == -1) {
             perror("Failed to read from FIFO");
@@ -340,6 +395,9 @@ int main(int argc, char *argv[]) {
 
   if (argc == 5) {
 
+    // ignore signals
+  
+
     running = 1;
 
     max_backups = atoi(argv[2]); 
@@ -358,7 +416,7 @@ int main(int argc, char *argv[]) {
 
     pthread_t *threads, *manager_threads;
     threads = malloc((long unsigned int)max_threads * sizeof(pthread_t));
-    manager_threads = malloc((long unsigned int)NUM_THREADS_MANAGER_POOL * sizeof(pthread_t));
+    manager_threads = malloc((long unsigned int)MAX_SESSION_COUNT * sizeof(pthread_t));
 
     dir = argv[1];
 
@@ -392,9 +450,9 @@ int main(int argc, char *argv[]) {
     pthread_create(host_thread, NULL, &host, NULL);
 
     // create the pool of manager threads
-    for (int i = 0; i < NUM_THREADS_MANAGER_POOL; i++) {
+    for (int i = 0; i < MAX_SESSION_COUNT; i++) {
 
-      if (pthread_create(&manager_threads[i], NULL, &manager_pool, NULL) != 0) {
+      if (pthread_create(&manager_threads[i], NULL, &manager_pool, (void *) i) != 0) {
           fprintf(stderr, "Failed to create thread %d\n", i);
           exit(EXIT_FAILURE);
       }
@@ -409,6 +467,8 @@ int main(int argc, char *argv[]) {
       } 
     }
 
+    ignore_signals();
+    
     while ((d = readdir(folder)) != NULL) {
       char* f;
       if ((f = is_job(d->d_name, d->d_type)) != NULL) {
@@ -423,6 +483,11 @@ int main(int argc, char *argv[]) {
     // wait for the threads to end
     for (int i = 0; i < max_threads; i++) {
       pthread_join(threads[i], NULL);
+    }
+
+    // wait for the manager threads to end
+    for (int i = 0; i < MAX_SESSION_COUNT; i++) {
+      pthread_join(manager_threads[i], NULL);
     }
     
     // wait for the backups to end
