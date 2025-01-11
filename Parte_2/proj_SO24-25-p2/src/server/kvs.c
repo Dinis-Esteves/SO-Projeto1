@@ -36,8 +36,9 @@ void notify_clients(int fds[], const char *key, const char* value) {
     char message[sizeof(key) + sizeof(value) + 4] = {0};
     snprintf(message, MAX_STRING_SIZE, "(%s,%s)", key, value);
 
-    for (int i = 0; i < MAX_CLIENTS; i++) {
+    for (int i = 0; i < MAX_SESSION_COUNT; i++) {
         if (fds[i] > 0) {
+            printf("notified %d\n", fds[i]);
             write_all(fds[i], message, sizeof(message));
         }
     }
@@ -119,7 +120,7 @@ int subscribe_key(HashTable *ht, const char *key, int client_fd) {
         if (strcmp(keyNode->key, key) == 0) {
 
             // find an empty slot in the client_fds array
-            for (int i = 0; i < MAX_CLIENTS; i++) {
+            for (int i = 0; i < MAX_SESSION_COUNT; i++) {
                 if (keyNode->client_fds[i] <= 0) {
                     keyNode->client_fds[i] = client_fd;
                     return 0;
@@ -141,7 +142,7 @@ int unsubscribe_key(HashTable *ht, const char *key, int client_fd) {
         if (strcmp(keyNode->key, key) == 0) {
 
             // find the client_fd in the client_fds array
-            for (int i = 0; i < MAX_CLIENTS; i++) {
+            for (int i = 0; i < MAX_SESSION_COUNT; i++) {
                 if (keyNode->client_fds[i] == client_fd) {
                     keyNode->client_fds[i] = -1; //delete the client_fd
                     return 0;
@@ -221,12 +222,12 @@ FIFOBuffer* init_FIFO_buffer() {
     fifo->front = 0;
     fifo->rear = 0;
 
-    sem_init(&fifo->empty, 0, MAX_CLIENTS); 
+    sem_init(&fifo->empty, 0, MAX_SESSION_COUNT); 
     sem_init(&fifo->full, 0, 0);        
     pthread_mutex_init(&fifo->mutex, NULL);
 
     // Allocate memory for each string in the buffer
-    for (int i = 0; i < MAX_CLIENTS; i++) {
+    for (int i = 0; i < MAX_SESSION_COUNT; i++) {
         fifo->buffer[i] = malloc(MAX_PIPE_PATH_LENGTH * 3 + 3); // For 3 pipes and delimiters
     }
 
@@ -246,7 +247,7 @@ void enqueue(FIFOBuffer *fifo, const char *req_pipe, const char *resp_pipe, cons
     pthread_mutex_lock(&fifo->mutex);
     snprintf(fifo->buffer[fifo->rear], MAX_PIPE_PATH_LENGTH * 3 + 3, "%s|%s|%s", req_pipe, resp_pipe, notif_pipe); // Format the message
     fifo->buffer[fifo->rear][MAX_PIPE_PATH_LENGTH * 3 + 2] = '\0'; // Explicitly null-terminate
-    fifo->rear = (fifo->rear + 1) % MAX_CLIENTS; // Update the rear pointer
+    fifo->rear = (fifo->rear + 1) % MAX_SESSION_COUNT; // Update the rear pointer
     pthread_mutex_unlock(&fifo->mutex);
 
     sem_post(&fifo->full); // Signal that a slot is now full
@@ -257,11 +258,48 @@ void dequeue(FIFOBuffer *fifo, char *req_pipe, char *resp_pipe, char *notif_pipe
 
     pthread_mutex_lock(&fifo->mutex);
     char *message = fifo->buffer[fifo->front];
-    fifo->front = (fifo->front + 1) % MAX_CLIENTS; // Update the front pointer
+    fifo->front = (fifo->front + 1) % MAX_SESSION_COUNT; // Update the front pointer
     pthread_mutex_unlock(&fifo->mutex);
 
     // Parse the message into the three pipes
     sscanf(message, "%39[^|]|%39[^|]|%39[^|]", req_pipe, resp_pipe, notif_pipe);
 
     sem_post(&fifo->empty); // Signal that a slot is now empty
+}
+
+Client *init_client(int req_fd, int resp_fd, int notif_fd) {
+    Client *client = malloc(sizeof(Client));
+    if (!client) {
+        perror("Failed to allocate memory for client");
+        exit(EXIT_FAILURE);
+    }
+    client->req_fd = req_fd;
+    client->resp_fd = resp_fd;
+    client->notif_fd = notif_fd;
+    for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+        client->keys[i][0] = '\0'; // Initialize the keys array
+    }
+    return client;
+}
+
+void subscribe_client(Client *client, const char *key) {
+    for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+        if (client->keys[i][0] == '\0') {
+            strcpy(client->keys[i], key);
+            return;
+        }
+    }
+}
+
+void destroy_client(Client *client) {
+    free(client);
+}
+
+void unsubscribe_client(Client *client, const char *key) {
+    for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+        if (strcmp(client->keys[i], key) == 0) {
+            client->keys[i][0] = '\0'; // Clear the key
+            return;
+        }
+    }
 }
