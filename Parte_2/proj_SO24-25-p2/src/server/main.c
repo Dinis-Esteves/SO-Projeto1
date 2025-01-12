@@ -1,5 +1,6 @@
 #include <dirent.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <limits.h>
@@ -12,6 +13,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "constants.h"
 #include "kvs.h"
 #include "../common/io.h" 
@@ -31,7 +33,9 @@ int *active_backups;
 int still_running = 1;
 pthread_mutex_t active_backups_mutex;
 char fifo_pathname[MAX_PIPE_PATH_LENGTH];
+pthread_mutex_t clients_mutex;
 Client *clients[MAX_SESSION_COUNT] = {0};
+atomic_int sigurs1_mem = 0;
 
 // function to ignore the signals SIGUSR1 and SIGPIPE
 void ignore_signals() {
@@ -42,22 +46,10 @@ void ignore_signals() {
   pthread_sigmask(SIG_BLOCK, &mask, NULL);
   }
 
-void handle_sigpipe() {
-  return;
-}
-
 // function to the manager pool threads
-void* manager_pool(void *idx) {
+void* manager_pool() {
 
-  printf("manager thread %d\n", *(int*) idx);
-
-  signal(SIGPIPE, handle_sigpipe);
-
-  // ignore the SIGUSR1 signal
-  sigset_t mask;
-  sigemptyset(&mask);
-  sigaddset(&mask, SIGUSR1);
-  pthread_sigmask(SIG_BLOCK, &mask, NULL);
+  ignore_signals();
 
   // i'll make it run until the jobs ended for now but im pretty sure it isn't what they want
   while (1) {
@@ -98,21 +90,25 @@ void* manager_pool(void *idx) {
     Client *client = init_client(req_fd, resp_fd, notif_fd);
 
     // add the client to the client list
-    for (int i; i < MAX_SESSION_COUNT; i++) {
+    pthread_mutex_lock(&clients_mutex);
+    for (int i = 0; i < MAX_SESSION_COUNT; i++) {
       if (clients[i] == NULL) {
         clients[i] = client;
       }
     }
-
+    pthread_mutex_unlock(&clients_mutex);
+    
     // write the response to the client
     write_all(resp_fd, "1|OK\0", 5);
     int client_on = 1;
+
     while(client_on) {
       // read the request pipe
       char buffer[MAX_REQUEST_SIZE];
       int result = read_string(req_fd, buffer);
       if (result == -1) {
         perror("Failed to read from request pipe");
+        client_on = 0;
         break;
       } else if (result == 0) {
         continue;
@@ -316,13 +312,16 @@ void* handle_job() {
 void handle_sigusr1(int signo) {
 
   if (signo == SIGUSR1) {
-    printf("recebeu o signal\n");
-    for (int i; i < MAX_SESSION_COUNT; i++) {
+
+    write(1, "Received SIGUSR1\n", 17);
+    
+    pthread_mutex_lock(&clients_mutex);
+    for (int i = 0; i < MAX_SESSION_COUNT; i++) {
       Client *client = clients[i];
       if (client != NULL) {
          
         // unsubscribe client keys
-        for (int j; j < MAX_NUMBER_SUB; j++) {
+        for (int j = 0; j < MAX_NUMBER_SUB; j++) {
           char *key = client->keys[j];
           if (strcmp(key, "") != 0) {
             kvs_unsubscribe(key, client->notif_fd);
@@ -333,15 +332,23 @@ void handle_sigusr1(int signo) {
         close(client->notif_fd);
         close(client->resp_fd);
         close(client->req_fd);
-        
       }
     }
+    pthread_mutex_unlock(&clients_mutex);
   }
+}
+
+void catch_sigusr1(int signo) {
+  if (signo == SIGUSR1) {
+    sigurs1_mem++;
+    return;
+  }
+  return;
 }
 
 void* host() {
   // set the signal handler
-  signal(SIGUSR1, handle_sigusr1);
+  signal(SIGUSR1, catch_sigusr1);
   // ignore the SIGPIPE signal
   sigset_t mask;
   sigemptyset(&mask);
@@ -357,24 +364,32 @@ void* host() {
         exit(EXIT_FAILURE);
     }
 
-    // Open the pipe for reading
-    int fd = open(fifo_pathname, O_RDONLY);
-    if (fd == -1) {
-        perror("[ERR]: open failed");
-        exit(EXIT_FAILURE);
-    }
 
     while (1) {
         char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4] = {0};
+        // Open the pipe for reading
+        int fd = open(fifo_pathname, O_RDONLY);
+        if (fd == -1 && errno != EINTR) {
+            perror("[ERR]: open failed");
+        } else if (fd == -1 && errno == EINTR) {
+            handle_sigusr1(SIGUSR1);
+        }
 
         // Keep reading from the FIFO
         int result = read_string(fd, buffer);
+        close(fd); // Close the FIFO after reading
 
-        if (result == -1) {
+        if (result == -1 && sigurs1_mem == 0) {
             perror("Failed to read from FIFO");
             break;  // If error reading, break out of the loop
         } else if (result == 0) {
             continue;  // No data available, continue to the next iteration
+        } else if (sigurs1_mem > 0 && result == -1) {
+          // try to open again
+          fd = open(fifo_pathname, O_RDONLY);
+          if (fd == -1) {
+            perror("[ERR]: open failed");
+          }
         }
 
         // Parse the connect request
@@ -450,9 +465,9 @@ int main(int argc, char *argv[]) {
     pthread_create(host_thread, NULL, &host, NULL);
 
     // create the pool of manager threads
+    pthread_mutex_init(&clients_mutex, NULL);
     for (int i = 0; i < MAX_SESSION_COUNT; i++) {
-
-      if (pthread_create(&manager_threads[i], NULL, &manager_pool, (void *) i) != 0) {
+      if (pthread_create(&manager_threads[i], NULL, &manager_pool, NULL) != 0) {
           fprintf(stderr, "Failed to create thread %d\n", i);
           exit(EXIT_FAILURE);
       }
@@ -460,7 +475,6 @@ int main(int argc, char *argv[]) {
 
     // create the number of threads specified in the input
     for (int i = 0; i < max_threads; i++) {
-
       if (pthread_create(&threads[i], NULL, &handle_job, NULL) != 0) {
           fprintf(stderr, "Failed to create thread %d\n", i);
           exit(EXIT_FAILURE);
