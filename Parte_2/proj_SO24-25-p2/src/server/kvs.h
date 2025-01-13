@@ -14,6 +14,7 @@ typedef struct KeyNode {
     char *key;
     char *value;
     int client_fds[MAX_SESSION_COUNT];
+    pthread_mutex_t mutex;
     struct KeyNode *next;
 } KeyNode;
 

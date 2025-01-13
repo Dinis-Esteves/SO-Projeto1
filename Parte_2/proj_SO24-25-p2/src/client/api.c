@@ -20,7 +20,7 @@ int running = 1;
 pthread_t notif_thread;
 
 void* print_notifications() {
-    char buffer[MAX_STRING_SIZE];
+    char buffer[MAX_STRING_SIZE*2 + 3] = {0};
     
     while (running) {
         int result = read_all(notif_fd, buffer, sizeof(buffer), 0);

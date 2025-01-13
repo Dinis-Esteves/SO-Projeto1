@@ -1,6 +1,7 @@
 #include "kvs.h"
 #include "../common/constants.h"
 #include "../common/io.h"
+#include "operations.h"
 #include "string.h"
 #include <pthread.h>
 #include <stdio.h>
@@ -33,12 +34,11 @@ struct HashTable* create_hash_table() {
 }
 
 void notify_clients(int fds[], const char *key, const char* value) {
-    char message[sizeof(key) + sizeof(value) + 4] = {0};
-    snprintf(message, MAX_STRING_SIZE, "(%s,%s)", key, value);
+    char message[MAX_STRING_SIZE*2 + 3] = {0};
+    snprintf(message, MAX_STRING_SIZE*2 + 3, "(%s,%s)", key, value);
 
     for (int i = 0; i < MAX_SESSION_COUNT; i++) {
         if (fds[i] > 0) {
-            printf("notified %d\n", fds[i]);
             write_all(fds[i], message, sizeof(message));
         }
     }
@@ -60,6 +60,7 @@ int write_pair(HashTable *ht, const char *key, const char *value) {
 
     // Key not found, create a new key node
     keyNode = malloc(sizeof(KeyNode));
+    pthread_mutex_init(&keyNode->mutex, NULL);
     keyNode->key = strdup(key); // Allocate memory for the key
     keyNode->value = strdup(value); // Allocate memory for the value
     keyNode->next = ht->table[index]; // Link to existing nodes
@@ -120,12 +121,15 @@ int subscribe_key(HashTable *ht, const char *key, int client_fd) {
         if (strcmp(keyNode->key, key) == 0) {
 
             // find an empty slot in the client_fds array
+            pthread_mutex_lock(&keyNode->mutex);
             for (int i = 0; i < MAX_SESSION_COUNT; i++) {
                 if (keyNode->client_fds[i] <= 0) {
                     keyNode->client_fds[i] = client_fd;
+                    pthread_mutex_unlock(&keyNode->mutex);
                     return 0;
                 }
             }
+            pthread_mutex_unlock(&keyNode->mutex);
             return 1;
         }
         keyNode = keyNode->next;
@@ -142,13 +146,15 @@ int unsubscribe_key(HashTable *ht, const char *key, int client_fd) {
         if (strcmp(keyNode->key, key) == 0) {
 
             // find the client_fd in the client_fds array
+            pthread_mutex_lock(&keyNode->mutex);
             for (int i = 0; i < MAX_SESSION_COUNT; i++) {
                 if (keyNode->client_fds[i] == client_fd) {
                     keyNode->client_fds[i] = -1; //delete the client_fd
+                    pthread_mutex_unlock(&keyNode->mutex);
                     return 0;
                 }
             }
-
+            pthread_mutex_unlock(&keyNode->mutex);
             return 1;
         }
         keyNode = keyNode->next;
@@ -161,6 +167,7 @@ void free_table(HashTable *ht) {
         KeyNode *keyNode = ht->table[i];
         while (keyNode != NULL) {
             KeyNode *temp = keyNode;
+            pthread_mutex_destroy(&temp->mutex);
             keyNode = keyNode->next;
             free(temp->key);
             free(temp->value);
