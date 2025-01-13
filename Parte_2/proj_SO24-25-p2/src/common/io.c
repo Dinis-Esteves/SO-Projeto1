@@ -57,9 +57,8 @@ int write_all(int fd, const void *buffer, size_t size) {
   while (bytes_written < size) {
     ssize_t result = write(fd, buffer + bytes_written, size - bytes_written);
     if (result == -1) {
-      if (errno == EINTR) {
-        // error for broken PIPE (error associated with writting to the closed
-        // PIPE)
+      if (errno == EINTR || errno == EPIPE) {
+        return -2;
         continue;
       }
       perror("Failed to write to pipe");

@@ -20,17 +20,33 @@ int running = 1;
 pthread_t notif_thread;
 
 void* print_notifications() {
-  
-  char buffer[MAX_STRING_SIZE];
-  while (running) {
-    int n = read_string(notif_fd, buffer);
-    if (n > 0) {
-      printf("%s\n", buffer);
-    }
-  }
-  return NULL;
+    char buffer[MAX_STRING_SIZE];
+    
+    while (running) {
+        int result = read_all(notif_fd, buffer, sizeof(buffer), 0);
+        
+        // Error handling
+        if (result == -1) {
+          perror("Error reading from notification pipe");
+          close(notif_fd);
+          close(req_fd);
+          close(resp_fd);
+          exit(1);
+        } else if (result == 0) {
+          printf("The notification pipe was closed by the other side.\n");
+          close(notif_fd);
+          close(req_fd);
+          close(resp_fd);
+          exit(1);  
+        }
 
+        // Successfully read notification, print it
+        printf("%s\n", buffer);
+    }
+    
+    return NULL;
 }
+
 
 char* get_operation(int op_code) {
   switch (op_code) {
@@ -49,6 +65,7 @@ char* get_operation(int op_code) {
 
 void print_response() {
   char response[7] = {0};
+  
   if (read_string(resp_fd, response) < 0) {
     perror("Error reading from response pipe");
   }
@@ -145,9 +162,16 @@ int kvs_disconnect(void) {
   snprintf(request, MAX_REQUEST_SIZE, "2|");
 
   // write the message through the request pipe
-  if (write_all(req_fd, request, MAX_REQUEST_SIZE) < 0) {
+  int result = write_all(req_fd, request, MAX_REQUEST_SIZE);
+  if (result == -1) {
     perror("Error writing to request pipe");
     return 1;
+  } else if (result == -2) {
+    printf("Pipe is compromised, disconnecting client...\n");
+    close(req_fd);
+    close(resp_fd);
+    close(notif_fd);
+    exit(1);
   }
 
   // print the response from the server
@@ -170,10 +194,18 @@ int kvs_subscribe(const char* key) {
   char request[MAX_REQUEST_SIZE] = {0};
   snprintf(request, MAX_REQUEST_SIZE, "3|%s", key);
 
+  int result = write_all(req_fd, request, MAX_REQUEST_SIZE);
+
   // write the message through the request pipe
-  if (write_all(req_fd, request, MAX_REQUEST_SIZE) < 0) {
+  if (result == -1) {
     perror("Error writing to request pipe");
     return 1;
+  } else if (result == -2) {
+    printf("Pipe is compromised, disconnecting client...\n");
+    close(req_fd);
+    close(resp_fd);
+    close(notif_fd);
+    exit(1);
   }
 
   // print the response from the server
@@ -189,11 +221,18 @@ int kvs_unsubscribe(const char* key) {
   // create the request message
   char request[MAX_REQUEST_SIZE] = {0};
   snprintf(request, MAX_REQUEST_SIZE, "4|%s", key);
+  int result = write_all(req_fd, request, MAX_REQUEST_SIZE);
 
   // write the message through the request pipe
-  if (write(req_fd, request, MAX_REQUEST_SIZE) < 0) {
+  if (result == -1) {
     perror("Error writing to request pipe");
     return 1;
+  } else if (result == -2) {
+    printf("Pipe is compromised, disconnecting client...\n");
+    close(req_fd);
+    close(resp_fd);
+    close(notif_fd);
+    exit(1);
   }
 
   // print response from the server

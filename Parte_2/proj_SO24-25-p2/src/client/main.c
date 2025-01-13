@@ -1,5 +1,6 @@
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,6 +14,12 @@
 
 int main(int argc, char* argv[]) {
   if (argc < 3) {
+
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, SIGPIPE);
+  pthread_sigmask(SIG_BLOCK, &mask, NULL);
+
     fprintf(stderr, "Usage: %s <client_unique_id> <register_pipe_path>\n", argv[0]);
     return 1;
   }
