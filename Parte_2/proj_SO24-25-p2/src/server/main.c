@@ -51,7 +51,6 @@ void* manager_pool() {
 
   ignore_signals();
 
-  // i'll make it run until the jobs ended for now but im pretty sure it isn't what they want
   while (1) {
     char req_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
     char resp_pipe_path[MAX_PIPE_PATH_LENGTH] = {0};
@@ -94,6 +93,7 @@ void* manager_pool() {
     for (int i = 0; i < MAX_SESSION_COUNT; i++) {
       if (clients[i] == NULL) {
         clients[i] = client;
+        break;
       }
     }
     pthread_mutex_unlock(&clients_mutex);
@@ -105,60 +105,103 @@ void* manager_pool() {
     while(client_on) {
       // read the request pipe
       char buffer[MAX_REQUEST_SIZE];
-      int result = read_string(req_fd, buffer);
+      int result = read_all(req_fd, buffer, sizeof(buffer), 0);
       if (result == -1) {
-        perror("Failed to read from request pipe");
+        printf("Pipe is compromised, disconnecting client...\n");
+        for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+          if (strcmp(client->keys[i], "") != 0) {
+            kvs_unsubscribe(client->keys[i], notif_fd);
+          }
+        }
+        destroy_client(client);
         client_on = 0;
         break;
       } else if (result == 0) {
-        continue;
+        printf("client disconnected suddenly\n");
+        for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+          if (strcmp(client->keys[i], "") != 0) {
+            kvs_unsubscribe(client->keys[i], notif_fd);
+          }
+        }
+        destroy_client(client);
+        client_on = 0;
+        break;
       } else {
         int op_code = 0;
         char key[MAX_STRING_SIZE] = {0};
         sscanf(buffer, "%d|%s", &op_code, key);
-        
+        int res = 0;
         switch (op_code) {
         
         case OP_CODE_SUBSCRIBE:
           if (kvs_subscribe(key, notif_fd) == 0) {
-            write_all(resp_fd, "3|OK\0", 5);
+            res = write_all(resp_fd, "3|OK\0", 5);
             subscribe_client(client, key);
           }
           else {
-            write_all(resp_fd, "3|ERROR\0", 8);
+            res = write_all(resp_fd, "3|ERROR\0", 8);
           }
-
+          if (res == -1) {
+            printf("Pipe is compromised, disconnecting client...\n");
+            for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+              if (strcmp(client->keys[i], "") != 0) {
+                kvs_unsubscribe(client->keys[i], notif_fd);
+              }
+            }
+            destroy_client(client);
+            client_on = 0;
+            break;
+          }
           break;
           
         case OP_CODE_UNSUBSCRIBE:
           if (kvs_unsubscribe(key, notif_fd) == 0) {
-            write_all(resp_fd, "4|OK\0", 5);
+            res = write_all(resp_fd, "4|OK\0", 5);
 
             unsubscribe_client(client, key);
           } else {
-            write_all(resp_fd, "4|ERROR\0", 8);
+            res = write_all(resp_fd, "4|ERROR\0", 8);
+          }
+          if (res == -1) {
+            printf("Pipe is compromised, disconnecting client...\n");
+            for (int i = 0; i < MAX_NUMBER_SUB; i++) {
+              if (strcmp(client->keys[i], "") != 0) {
+                kvs_unsubscribe(client->keys[i], notif_fd);
+              }
+            }
+            destroy_client(client);
+            client_on = 0;
+            break;
           }
 
           break;
 
         case OP_CODE_DISCONNECT:
 
-        write_all(resp_fd, "2|OK\0", 5);
+        res = write_all(resp_fd, "2|OK\0", 5);
+        
+        if (res == -1) {
+          printf("Pipe is compromised, disconnecting client...\n");
+          client_on = 0;
+          break;
+        }
 
         // unsubscribe all the keys
         for (int i = 0; i < MAX_NUMBER_SUB; i++) {
           if (strcmp(client->keys[i], "") != 0) {
             kvs_unsubscribe(client->keys[i], notif_fd);
           }
+         }
 
+          destroy_client(client);
           // close the pipes
           close(req_fd);
           close(resp_fd);
           close(notif_fd);
-          
+          printf("Client Disconnected Succesfully\n");
           client_on = 0;
           break;
-         }
+
         }
       }  
     }
@@ -313,8 +356,6 @@ void handle_sigusr1(int signo) {
 
   if (signo == SIGUSR1) {
 
-    write(1, "Received SIGUSR1\n", 17);
-    
     pthread_mutex_lock(&clients_mutex);
     for (int i = 0; i < MAX_SESSION_COUNT; i++) {
       Client *client = clients[i];
@@ -347,60 +388,53 @@ void catch_sigusr1(int signo) {
 }
 
 void* host() {
-  // set the signal handler
-  signal(SIGUSR1, catch_sigusr1);
-  // ignore the SIGPIPE signal
-  sigset_t mask;
-  sigemptyset(&mask);
-  sigaddset(&mask, SIGPIPE);
-  pthread_sigmask(SIG_BLOCK, &mask, NULL);
+    // Set up signal handling
+    signal(SIGUSR1, catch_sigusr1);
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGPIPE);
+    pthread_sigmask(SIG_BLOCK, &mask, NULL);
 
-    // Remove pipe if it exists
+    // Remove and recreate FIFO
     unlink(fifo_pathname);
-
-    // Create the connection pipe
     if (mkfifo(fifo_pathname, 0640) != 0) {
         perror("[ERR]: mkfifo failed");
         exit(EXIT_FAILURE);
     }
 
-
     while (1) {
         char buffer[MAX_PIPE_PATH_LENGTH * 3 + 4] = {0};
-        // Open the pipe for reading
+        
         int fd = open(fifo_pathname, O_RDONLY);
-        if (fd == -1 && errno != EINTR) {
+        if (fd == -1) {
+            if (errno == EINTR) {
+                handle_sigusr1(SIGUSR1); // Handle the signal safely
+                continue;
+            }
             perror("[ERR]: open failed");
-        } else if (fd == -1 && errno == EINTR) {
-            handle_sigusr1(SIGUSR1);
+            break;
         }
 
-        // Keep reading from the FIFO
         int result = read_string(fd, buffer);
-        close(fd); // Close the FIFO after reading
+        close(fd);
 
-        if (result == -1 && sigurs1_mem == 0) {
-            perror("Failed to read from FIFO");
-            break;  // If error reading, break out of the loop
+        if (result == -1) {
+            if (sigurs1_mem > 0) {
+                continue;
+            } else {
+                perror("[ERR]: Failed to read from FIFO");
+                break;
+            }
         } else if (result == 0) {
-            continue;  // No data available, continue to the next iteration
-        } else if (sigurs1_mem > 0 && result == -1) {
-          // try to open again
-          fd = open(fifo_pathname, O_RDONLY);
-          if (fd == -1) {
-            perror("[ERR]: open failed");
-          }
+            continue;
         }
 
-        // Parse the connect request
         char req_pipe_path[MAX_PIPE_PATH_LENGTH];
         char resp_pipe_path[MAX_PIPE_PATH_LENGTH];
         char notif_pipe_path[MAX_PIPE_PATH_LENGTH];
         sscanf(buffer, "1|%[^|]|%[^|]|%[^|]", req_pipe_path, resp_pipe_path, notif_pipe_path);
 
-        // Enqueue the connect request
         enqueue(pc_buffer, req_pipe_path, resp_pipe_path, notif_pipe_path);
-
     }
 
     return NULL;
@@ -411,7 +445,6 @@ int main(int argc, char *argv[]) {
   if (argc == 5) {
 
     // ignore signals
-  
 
     running = 1;
 
