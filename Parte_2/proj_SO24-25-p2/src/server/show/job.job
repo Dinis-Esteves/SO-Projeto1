@@ -1,0 +1,7 @@
+HELP
+WRITE [(A1,Arroz)(a2,Andre)(x,Xilofone)]
+READ [A1,x,alpha]
+DELETE [a2,omelete]
+BACKUP
+SHOW
+WAIT 5000

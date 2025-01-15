@@ -1,0 +1,7 @@
+WRITE [(A1,Arroz)(a2,Andre)(x,Xilofone)]
+READ [A1]
+WAIT 12000
+WRITE [(A1,Amigo)]
+WAIT 10000
+WRITE [(A1,Amiga)]
+DELETE [x]
