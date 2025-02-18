@@ -22,17 +22,11 @@ int *active_backups;
 int still_running = 1;
 pthread_mutex_t active_backups_mutex;
 
-void free_all() {
-    free(active_backups);
-    pthread_mutex_destroy(&active_backups_mutex);
-    destroy_stack(s);
-    kvs_terminate();
-}
 // function to pass in the threads
 void* handle_job() {
   char* f;
   
-  // run until the other function didn't end to span the dir and the stack is not empty
+  // run until the other funciton didn't end to span the dir and the stack is not empty
   while (still_running || !is_empty(s)) {
     while (still_running || !is_empty(s)) {
       f = pop(s);
@@ -45,7 +39,7 @@ void* handle_job() {
 
     char file_path[PATH_MAX];
     char filename[FILENAME_MAX];
-    char file_path_no_extension[FILENAME_MAX]; 
+    char file_path_no_extension[FILENAME_MAX];
 
     snprintf(file_path, sizeof(file_path), "%s/%s.job", dir, f);
     snprintf(filename, sizeof(filename), "%s/%s.out", dir, f);
@@ -171,9 +165,9 @@ int main(int argc, char *argv[]) {
 
   if (argc == 4) {
 
-    max_backups = (*argv[2]) - '0'; 
+    max_backups = atoi(argv[2]); 
 
-    max_threads = (*argv[3]) - '0';
+    max_threads = atoi(argv[3]);
 
     active_backups = malloc(sizeof(int));
 
@@ -182,7 +176,7 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&active_backups_mutex, NULL);
 
     pthread_t *threads;
-    threads = malloc((long unsigned int)max_threads * sizeof(pthread_t)); 
+    threads = malloc((long unsigned int)max_threads * sizeof(pthread_t));
 
     dir = argv[1];
 
@@ -252,5 +246,5 @@ int main(int argc, char *argv[]) {
     closedir(folder);
   }
   
-}
+  }
 

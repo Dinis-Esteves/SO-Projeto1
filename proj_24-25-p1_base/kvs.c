@@ -1,15 +1,10 @@
 #include "kvs.h"
 #include "string.h"
-
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
-
-int compare_index(const void *a, const void *b) {
-    return *(int*)a - *(int*)b;
-}
 
 // Hash function based on key initial.
 // @param key Lowercase alphabetical string.
@@ -25,54 +20,12 @@ int hash(const char *key) {
     return -1; // Invalid index for non-alphabetic or number strings
 }
 
-void lock_table_in_order(HashTable *ht, const char (*keys)[MAX_STRING_SIZE], size_t count, int write) {
-    int index[count];
-
-    // Get the indices of the keys
-    for (int i = 0; i < (int)count; i++) {
-        index[i] = hash(keys[i]);
-    }
-
-    // Sort the keys in ascending order
-    qsort(index, count, sizeof(char*), compare_index);
-
-    // Lock the table in order
-    for (int i = 0; i < (int)count; i++) {
-        if (i == 0 || index[i] != index[i - 1]) {       // lock if not already locked
-            if (write) {
-                pthread_rwlock_wrlock(&ht->table_locks[index[i]]);
-            } else {
-                pthread_rwlock_rdlock(&ht->table_locks[index[i]]);
-            }
-        }
-    }
-}
-
-void unlock_table_in_order(HashTable *ht, const char (*keys)[MAX_STRING_SIZE], size_t count) {
-    int index[count];
-
-    // Get the indices of the keys
-    for (int i = 0; i < (int)count; i++) {
-        index[i] = hash(keys[i]);
-    }
-
-    // Sort the keys in ascending order
-    qsort(index, count, sizeof(char*), compare_index);
-
-    // Unlock the table in order
-    for (int i = (int)count - 1; i >= 0; i--) {
-        if (i == (int)count - 1 || index[i] != index[i + 1]) {
-            pthread_rwlock_unlock(&ht->table_locks[index[i]]);
-        }
-    }
-}
-
 struct HashTable* create_hash_table() {
   HashTable *ht = malloc(sizeof(HashTable));
   if (!ht) return NULL;
   for (int i = 0; i < TABLE_SIZE; i++) {
+      pthread_rwlock_init(&ht->rwlock[i], NULL);
       ht->table[i] = NULL;
-    	pthread_rwlock_init(&ht->table_locks[i], NULL);
   }
   return ht;
 }
@@ -80,7 +33,6 @@ struct HashTable* create_hash_table() {
 int write_pair(HashTable *ht, const char *key, const char *value) {
     int index = hash(key);
     KeyNode *keyNode = ht->table[index];
-
     // Search for the key node
     while (keyNode != NULL) {
         if (strcmp(keyNode->key, key) == 0) {
@@ -140,22 +92,18 @@ int delete_pair(HashTable *ht, const char *key) {
         prevNode = keyNode; // Move prevNode to current node
         keyNode = keyNode->next; // Move to the next node
     }
-    
     return 1;
 }
 
 void free_table(HashTable *ht) {
     for (int i = 0; i < TABLE_SIZE; i++) {
         KeyNode *keyNode = ht->table[i];
-
-		// free the read-write locks for this index
-		pthread_rwlock_destroy(&ht->table_locks[i]);
-
         while (keyNode != NULL) {
             KeyNode *temp = keyNode;
             keyNode = keyNode->next;
             free(temp->key);
             free(temp->value);
+            pthread_rwlock_destroy(&ht->rwlock[i]);
             free(temp);
         }
     }

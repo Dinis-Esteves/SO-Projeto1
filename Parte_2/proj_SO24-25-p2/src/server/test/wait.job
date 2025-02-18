@@ -1,0 +1,7 @@
+WRITE [(TEST,1)]
+#Wait for 10 seconds to have time to test the client
+WAIT 20000
+WRITE [(TEST,2)]
+WAIT 5000
+DELETE [TEST]
+WAIT 2000
